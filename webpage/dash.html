@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TSBio — Painel de Indicadores</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#071a15;color:#b2dfdb;min-height:100vh;overflow-x:hidden}
+header{background:linear-gradient(90deg,rgba(0,105,92,.3),rgba(0,150,136,.1));border-bottom:1px solid rgba(0,150,136,.25);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.logo-area{display:flex;align-items:center;gap:10px}
+.logo-box{width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,#00695C,#009688);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#e0f2f1;box-shadow:0 4px 16px rgba(0,150,136,.35)}
+.logo-text h1{font-size:18px;font-weight:800;letter-spacing:2px;color:#e0f2f1}
+.logo-text p{font-size:10px;color:#4db6ac;letter-spacing:.5px}
+.header-meta{font-size:10px;color:#3d7a70;text-align:right}
+
+.tabs{display:flex;gap:4px;padding:10px 20px;background:rgba(0,77,64,.15);border-bottom:1px solid rgba(0,150,136,.12);flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;color:#4db6ac;background:transparent;border:1px solid transparent;transition:all .2s}
+.tab:hover{background:rgba(0,150,136,.1);border-color:rgba(0,150,136,.2)}
+.tab.active{background:rgba(0,150,136,.18);border-color:rgba(0,150,136,.35);color:#a7ffeb}
+
+main{padding:16px 20px;display:flex;flex-direction:column;gap:16px}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}
+.kpi{background:rgba(0,150,136,.06);border:1px solid rgba(0,150,136,.15);border-radius:12px;padding:14px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,150,136,.15)}
+.kpi-label{font-size:10px;color:#4db6ac;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.kpi-value{font-size:24px;font-weight:800;color:#e0f2f1}
+.kpi-sub{font-size:10px;color:#3d7a70;margin-top:4px}
+.kpi-icon{position:absolute;top:10px;right:12px;font-size:20px;opacity:.25}
+.kpi-trend{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;margin-top:4px;padding:2px 6px;border-radius:4px}
+.trend-up{color:#81c784;background:rgba(129,199,132,.1)}
+.trend-down{color:#ef9a9a;background:rgba(239,154,154,.1)}
+.trend-neutral{color:#4db6ac;background:rgba(77,182,172,.1)}
+
+.section-title{font-size:13px;font-weight:700;color:#80cbc4;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.section-title::before{content:'';width:3px;height:14px;background:#009688;border-radius:2px}
+
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chart-card{background:rgba(0,150,136,.05);border:1px solid rgba(0,150,136,.12);border-radius:12px;padding:16px;min-height:200px}
+.chart-card h3{font-size:11px;color:#4db6ac;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+
+.bar-chart{display:flex;flex-direction:column;gap:6px}
+.bar-row{display:flex;align-items:center;gap:8px}
+.bar-label{font-size:10px;color:#80cbc4;min-width:90px;text-align:right}
+.bar-track{flex:1;height:18px;background:rgba(0,150,136,.08);border-radius:4px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:4px;transition:width 1s ease;position:relative}
+.bar-val{font-size:9px;color:#e0f2f1;font-weight:700;position:absolute;right:6px;top:50%;transform:translateY(-50%)}
+
+.donut-container{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap}
+.donut-svg{width:130px;height:130px}
+.donut-legend{display:flex;flex-direction:column;gap:5px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:10px;color:#80cbc4}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+.territory-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.territory-card{background:rgba(0,150,136,.05);border:1px solid rgba(0,150,136,.12);border-radius:10px;padding:12px;cursor:pointer;transition:all .2s}
+.territory-card:hover{background:rgba(0,150,136,.1);border-color:rgba(0,150,136,.3);transform:translateY(-1px)}
+.territory-card h4{font-size:12px;color:#e0f2f1;margin-bottom:4px}
+.territory-card .t-munic{font-size:9px;color:#3d7a70}
+.territory-card .t-stats{display:flex;gap:10px;margin-top:8px}
+.territory-card .t-stat{font-size:10px;color:#4db6ac}
+.territory-card .t-stat span{display:block;font-size:16px;font-weight:700;color:#80cbc4}
+
+.timeline{display:flex;flex-direction:column;gap:4px}
+.tl-row{display:flex;align-items:center;gap:6px}
+.tl-year{font-size:10px;color:#3d7a70;min-width:36px;text-align:right}
+.tl-bar-track{flex:1;height:10px;background:rgba(0,150,136,.06);border-radius:3px;overflow:hidden}
+.tl-bar{height:100%;border-radius:3px;transition:width 1.2s ease}
+
+.table-wrapper{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:10px}
+th{text-align:left;padding:8px 10px;color:#4db6ac;border-bottom:1px solid rgba(0,150,136,.2);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+td{padding:7px 10px;border-bottom:1px solid rgba(0,150,136,.06);color:#80cbc4}
+tr:hover td{background:rgba(0,150,136,.04)}
+
+footer{background:rgba(0,150,136,.04);border-top:1px solid rgba(0,150,136,.12);padding:10px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:9px;color:#2a5c52;margin-top:auto}
+
+.hidden{display:none}
+
+@media(max-width:700px){
+  .charts-row{grid-template-columns:1fr}
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  header{padding:10px 14px}
+  main{padding:12px 14px}
+  .kpi-value{font-size:20px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-area">
+    <div class="logo-box">TS</div>
+    <div class="logo-text">
+      <h1>TSBio</h1>
+      <p>Territórios da Sociobioeconomia · Painel de Indicadores</p>
+    </div>
+  </div>
+  <div class="header-meta">
+    <div>766 indicadores · 22 fontes · 6 territórios · 62 municípios</div>
+    <div>Atualizado: Fevereiro 2026</div>
+  </div>
+</header>
+
+<div class="tabs" id="tabs">
+  <div class="tab active" data-tab="visao">Visão Geral</div>
+  <div class="tab" data-tab="territorios">Territórios</div>
+  <div class="tab" data-tab="ambiental">Ambiental</div>
+  <div class="tab" data-tab="social">Social</div>
+  <div class="tab" data-tab="economico">Econômico</div>
+</div>
+
+<main id="main-content"></main>
+
+<footer>
+  <span>TSBio © 2026 · Prospera Sociobio</span>
+  <span>Fontes: IBGE, INPE/PRODES, DETER, MapBiomas, Adapta Brasil/MCTI, Atlas DH/PNUD, BCB</span>
+</footer>
+
+<script>
+const DATA = {
+  territorios: [
+    {nome:"Baixo Amazonas",munic:11,pop:"822 mil",idh:0.587,desmat:342,floresta:78.2},
+    {nome:"Marajó",munic:16,pop:"613 mil",idh:0.527,desmat:187,floresta:82.1},
+    {nome:"Xingu",munic:10,pop:"445 mil",idh:0.558,desmat:892,floresta:71.4},
+    {nome:"BR-163",munic:7,pop:"368 mil",idh:0.614,desmat:1245,floresta:55.3},
+    {nome:"Transamazônica",munic:9,pop:"512 mil",idh:0.543,desmat:1087,floresta:62.8},
+    {nome:"Tapajós-Arapiuns",munic:9,pop:"297 mil",idh:0.571,desmat:218,floresta:84.6}
+  ],
+  desmatAnual:[
+    {ano:2019,val:4571},{ano:2020,val:5212},{ano:2021,val:5873},
+    {ano:2022,val:4986},{ano:2023,val:3421},{ano:2024,val:2847},{ano:2025,val:2310}
+  ],
+  usoSolo:[
+    {tipo:"Floresta Nativa",pct:68.4,cor:"#1b5e20"},
+    {tipo:"Pastagem",pct:14.7,cor:"#e65100"},
+    {tipo:"Agricultura",pct:6.2,cor:"#f9a825"},
+    {tipo:"Água",pct:5.8,cor:"#0277bd"},
+    {tipo:"Outros",pct:4.9,cor:"#455a64"}
+  ],
+  produtosBio:[
+    {nome:"Açaí",val:1820,unit:"t/ano",trend:"up"},
+    {nome:"Castanha-do-Pará",val:940,unit:"t/ano",trend:"up"},
+    {nome:"Cacau Nativo",val:385,unit:"t/ano",trend:"up"},
+    {nome:"Óleos Essenciais",val:127,unit:"t/ano",trend:"neutral"},
+    {nome:"Borracha",val:78,unit:"t/ano",trend:"down"},
+    {nome:"Copaíba",val:42,unit:"t/ano",trend:"up"}
+  ],
+  social:{
+    popTotal:"3,06 milhões",txUrb:"58,4%",aguaPot:"42,7%",esgoto:"18,3%",
+    enem:"487,2 pts",mortalInf:"19,4‰",bolsaFam:"68,2%",ensFund:"71,8%"
+  }
+};
+
+const maxDesmat = Math.max(...DATA.desmatAnual.map(d=>d.val));
+
+function createDonutSVG(items, size=130){
+  let cum=0;const r=50,cx=65,cy=65,sw=18;
+  let paths='';
+  items.forEach(it=>{
+    const start=cum*3.6, end=(cum+it.pct)*3.6;
+    const s=start*Math.PI/180, e=end*Math.PI/180;
+    const x1=cx+r*Math.sin(s), y1=cy-r*Math.cos(s);
+    const x2=cx+r*Math.sin(e), y2=cy-r*Math.cos(e);
+    const large=it.pct>50?1:0;
+    paths+=`<path d="M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2}" fill="none" stroke="${it.cor}" stroke-width="${sw}" stroke-linecap="round" opacity="0.85"/>`;
+    cum+=it.pct;
+  });
+  return `<svg class="donut-svg" viewBox="0 0 130 130">${paths}<text x="65" y="62" text-anchor="middle" fill="#e0f2f1" font-size="16" font-weight="800">${items[0].pct}%</text><text x="65" y="76" text-anchor="middle" fill="#4db6ac" font-size="8">Floresta</text></svg>`;
+}
+
+function renderVisao(){
+  const maxProd=Math.max(...DATA.produtosBio.map(p=>p.val));
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-icon">🌳</div><div class="kpi-label">Cobertura Florestal</div><div class="kpi-value">68,4%</div><div class="kpi-trend trend-down">▼ -1,2 p.p. vs 2023</div></div>
+      <div class="kpi"><div class="kpi-icon">🔥</div><div class="kpi-label">Desmatamento 2025</div><div class="kpi-value">2.310 km²</div><div class="kpi-trend trend-up">▼ 18,9% vs 2024</div></div>
+      <div class="kpi"><div class="kpi-icon">👥</div><div class="kpi-label">População Total</div><div class="kpi-value">3,06 Mi</div><div class="kpi-sub">62 municípios · 6 territórios</div></div>
+      <div class="kpi"><div class="kpi-icon">📊</div><div class="kpi-label">IDH Médio</div><div class="kpi-value">0,567</div><div class="kpi-trend trend-up">▲ +0,008 vs 2023</div></div>
+      <div class="kpi"><div class="kpi-icon">🌿</div><div class="kpi-label">Produção Bioeconomia</div><div class="kpi-value">3.392 t</div><div class="kpi-trend trend-up">▲ +12,3% vs 2024</div></div>
+      <div class="kpi"><div class="kpi-icon">💰</div><div class="kpi-label">Crédito Rural Bio</div><div class="kpi-value">R$ 847 Mi</div><div class="kpi-trend trend-up">▲ +23% vs 2024</div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Desmatamento Anual (km²)</h3>
+        <div class="timeline">
+          ${DATA.desmatAnual.map(d=>`
+            <div class="tl-row">
+              <span class="tl-year">${d.ano}</span>
+              <div class="tl-bar-track"><div class="tl-bar" style="width:${(d.val/maxDesmat*100).toFixed(1)}%;background:${d.val>4000?'#ef5350':d.val>3000?'#ff9800':'#66bb6a'}"></div></div>
+              <span style="font-size:10px;color:#80cbc4;min-width:48px">${d.val.toLocaleString('pt-BR')}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Uso do Solo nos Territórios</h3>
+        <div class="donut-container">
+          ${createDonutSVG(DATA.usoSolo)}
+          <div class="donut-legend">
+            ${DATA.usoSolo.map(u=>`<div class="legend-item"><div class="legend-dot" style="background:${u.cor}"></div>${u.tipo}: ${u.pct}%</div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Produção da Sociobioeconomia</div>
+    <div class="chart-card">
+      <div class="bar-chart">
+        ${DATA.produtosBio.map(p=>{
+          const w=(p.val/maxProd*100).toFixed(1);
+          const tClass=p.trend==='up'?'trend-up':p.trend==='down'?'trend-down':'trend-neutral';
+          const tIcon=p.trend==='up'?'▲':p.trend==='down'?'▼':'●';
+          return `<div class="bar-row"><span class="bar-label">${p.nome}</span><div class="bar-track"><div class="bar-fill" style="width:${w}%;background:linear-gradient(90deg,#00695c,#26a69a)"><span class="bar-val">${p.val.toLocaleString('pt-BR')} ${p.unit}</span></div></div><span class="kpi-trend ${tClass}" style="font-size:9px">${tIcon}</span></div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderTerritorios(){
+  return `
+    <div class="section-title">6 Territórios da Sociobioeconomia</div>
+    <div class="territory-grid">
+      ${DATA.territorios.map(t=>`
+        <div class="territory-card">
+          <h4>🌎 ${t.nome}</h4>
+          <div class="t-munic">${t.munic} municípios · Pop. ${t.pop}</div>
+          <div class="t-stats">
+            <div class="t-stat"><span>${t.idh}</span>IDH</div>
+            <div class="t-stat"><span>${t.floresta}%</span>Floresta</div>
+            <div class="t-stat"><span>${t.desmat}</span>Desmat km²</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="section-title" style="margin-top:8px">Comparativo entre Territórios</div>
+    <div class="chart-card">
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Território</th><th>Municípios</th><th>População</th><th>IDH</th><th>Floresta %</th><th>Desmat. km²</th></tr></thead>
+          <tbody>
+            ${DATA.territorios.map(t=>`<tr><td style="color:#e0f2f1;font-weight:600">${t.nome}</td><td>${t.munic}</td><td>${t.pop}</td><td>${t.idh}</td><td>${t.floresta}%</td><td style="color:${t.desmat>800?'#ef9a9a':t.desmat>400?'#ffe082':'#a5d6a7'}">${t.desmat.toLocaleString('pt-BR')}</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderAmbiental(){
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-icon">🌳</div><div class="kpi-label">Floresta Remanescente</div><div class="kpi-value">68,4%</div><div class="kpi-trend trend-down">▼ -1,2 p.p.</div></div>
+      <div class="kpi"><div class="kpi-icon">🔥</div><div class="kpi-label">Alertas DETER</div><div class="kpi-value">4.218</div><div class="kpi-trend trend-up">▼ 22% alertas</div></div>
+      <div class="kpi"><div class="kpi-icon">💧</div><div class="kpi-label">Recursos Hídricos</div><div class="kpi-value">5,8%</div><div class="kpi-sub">da área total</div></div>
+      <div class="kpi"><div class="kpi-icon">🏞️</div><div class="kpi-label">Áreas Protegidas</div><div class="kpi-value">34,2%</div><div class="kpi-trend trend-neutral">● Estável</div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Evolução do Desmatamento (km²/ano)</h3>
+        <div class="timeline">
+          ${DATA.desmatAnual.map(d=>`
+            <div class="tl-row">
+              <span class="tl-year">${d.ano}</span>
+              <div class="tl-bar-track"><div class="tl-bar" style="width:${(d.val/maxDesmat*100).toFixed(1)}%;background:${d.val>4000?'#ef5350':d.val>3000?'#ffa726':'#66bb6a'}"></div></div>
+              <span style="font-size:10px;color:#80cbc4;min-width:48px">${d.val.toLocaleString('pt-BR')}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:#4db6ac;padding:8px;background:rgba(102,187,106,.08);border-radius:6px">
+          📉 Redução acumulada de <b>54,9%</b> desde o pico de 2021 (5.873 km²)
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Desmatamento por Território (2025)</h3>
+        <div class="bar-chart">
+          ${DATA.territorios.sort((a,b)=>b.desmat-a.desmat).map(t=>{
+            const mx=DATA.territorios.reduce((a,b)=>Math.max(a,b.desmat),0);
+            return `<div class="bar-row"><span class="bar-label">${t.nome}</span><div class="bar-track"><div class="bar-fill" style="width:${(t.desmat/mx*100).toFixed(1)}%;background:${t.desmat>800?'linear-gradient(90deg,#c62828,#ef5350)':t.desmat>400?'linear-gradient(90deg,#e65100,#ffa726)':'linear-gradient(90deg,#2e7d32,#66bb6a)'}"><span class="bar-val">${t.desmat} km²</span></div></div></div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Cobertura e Uso do Solo</h3>
+      <div class="donut-container">
+        ${createDonutSVG(DATA.usoSolo)}
+        <div class="donut-legend">
+          ${DATA.usoSolo.map(u=>`<div class="legend-item"><div class="legend-dot" style="background:${u.cor}"></div><b>${u.pct}%</b> ${u.tipo}</div>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSocial(){
+  const s=DATA.social;
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-icon">👥</div><div class="kpi-label">População</div><div class="kpi-value">${s.popTotal}</div><div class="kpi-sub">Taxa urbanização: ${s.txUrb}</div></div>
+      <div class="kpi"><div class="kpi-icon">💧</div><div class="kpi-label">Água Potável</div><div class="kpi-value">${s.aguaPot}</div><div class="kpi-trend trend-down">▼ Abaixo da meta</div></div>
+      <div class="kpi"><div class="kpi-icon">🏗️</div><div class="kpi-label">Esgotamento</div><div class="kpi-value">${s.esgoto}</div><div class="kpi-trend trend-down">▼ Crítico</div></div>
+      <div class="kpi"><div class="kpi-icon">📚</div><div class="kpi-label">Ens. Fundamental</div><div class="kpi-value">${s.ensFund}</div><div class="kpi-sub">taxa de conclusão</div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>IDH por Território</h3>
+        <div class="bar-chart">
+          ${DATA.territorios.sort((a,b)=>b.idh-a.idh).map(t=>{
+            const w=((t.idh-0.4)/0.3*100).toFixed(1);
+            const cor=t.idh>=0.6?'#66bb6a':t.idh>=0.55?'#ffa726':'#ef5350';
+            return `<div class="bar-row"><span class="bar-label">${t.nome}</span><div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${cor}"><span class="bar-val">${t.idh}</span></div></div></div>`;
+          }).join('')}
+        </div>
+        <div style="margin-top:8px;display:flex;gap:12px;font-size:9px;color:#3d7a70">
+          <span>🟢 Alto (≥0.60)</span><span>🟠 Médio (0.55-0.59)</span><span>🔴 Baixo (&lt;0.55)</span>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Indicadores Sociais</h3>
+        <div class="bar-chart">
+          ${[
+            {l:"Bolsa Família",v:68.2,c:"#7e57c2"},
+            {l:"Ens. Fundamental",v:71.8,c:"#42a5f5"},
+            {l:"Taxa Urbanização",v:58.4,c:"#26a69a"},
+            {l:"Água Potável",v:42.7,c:"#ef5350"},
+            {l:"ENEM (média/1000)",v:48.7,c:"#ffa726"},
+            {l:"Esgotamento",v:18.3,c:"#ef5350"}
+          ].map(i=>`<div class="bar-row"><span class="bar-label">${i.l}</span><div class="bar-track"><div class="bar-fill" style="width:${i.v}%;background:${i.c}"><span class="bar-val">${i.v}%</span></div></div></div>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderEconomico(){
+  const maxP=Math.max(...DATA.produtosBio.map(p=>p.val));
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-icon">🌿</div><div class="kpi-label">Produção Bio Total</div><div class="kpi-value">3.392 t/ano</div><div class="kpi-trend trend-up">▲ +12,3%</div></div>
+      <div class="kpi"><div class="kpi-icon">💰</div><div class="kpi-label">Crédito Rural Bio</div><div class="kpi-value">R$ 847 Mi</div><div class="kpi-trend trend-up">▲ +23%</div></div>
+      <div class="kpi"><div class="kpi-icon">📦</div><div class="kpi-label">Exportação Bio</div><div class="kpi-value">US$ 124 Mi</div><div class="kpi-trend trend-up">▲ +18,7%</div></div>
+      <div class="kpi"><div class="kpi-icon">🏭</div><div class="kpi-label">Cooperativas Ativas</div><div class="kpi-value">187</div><div class="kpi-trend trend-up">▲ +14 novas</div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Cadeia da Sociobioeconomia (t/ano)</h3>
+        <div class="bar-chart">
+          ${DATA.produtosBio.map(p=>{
+            const w=(p.val/maxP*100).toFixed(1);
+            return `<div class="bar-row"><span class="bar-label">${p.nome}</span><div class="bar-track"><div class="bar-fill" style="width:${w}%;background:linear-gradient(90deg,#00695c,#26a69a)"><span class="bar-val">${p.val.toLocaleString('pt-BR')} t</span></div></div></div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Evolução do Crédito Rural Bio (R$ Mi)</h3>
+        <div class="timeline">
+          ${[
+            {ano:2020,val:312},{ano:2021,val:418},{ano:2022,val:523},
+            {ano:2023,val:612},{ano:2024,val:689},{ano:2025,val:847}
+          ].map(d=>`
+            <div class="tl-row">
+              <span class="tl-year">${d.ano}</span>
+              <div class="tl-bar-track"><div class="tl-bar" style="width:${(d.val/847*100).toFixed(1)}%;background:linear-gradient(90deg,#1b5e20,#66bb6a)"></div></div>
+              <span style="font-size:10px;color:#80cbc4;min-width:48px">R$${d.val}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:#4db6ac;padding:8px;background:rgba(102,187,106,.08);border-radius:6px">
+          📈 Crescimento acumulado de <b>171,5%</b> em 5 anos
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Top Municípios — Valor da Bioeconomia</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Município</th><th>Território</th><th>Produção (t)</th><th>Receita (R$ Mi)</th><th>Cooperativas</th></tr></thead>
+          <tbody>
+            <tr><td style="color:#e0f2f1;font-weight:600">Abaetetuba</td><td>Baixo Amazonas</td><td>482</td><td>R$ 67,4</td><td>18</td></tr>
+            <tr><td style="color:#e0f2f1;font-weight:600">Cametá</td><td>Baixo Amazonas</td><td>391</td><td>R$ 52,1</td><td>14</td></tr>
+            <tr><td style="color:#e0f2f1;font-weight:600">Igarapé-Miri</td><td>Baixo Amazonas</td><td>358</td><td>R$ 48,7</td><td>12</td></tr>
+            <tr><td style="color:#e0f2f1;font-weight:600">Altamira</td><td>Xingu</td><td>287</td><td>R$ 41,3</td><td>15</td></tr>
+            <tr><td style="color:#e0f2f1;font-weight:600">Santarém</td><td>Tapajós-Arapiuns</td><td>264</td><td>R$ 38,9</td><td>21</td></tr>
+            <tr><td style="color:#e0f2f1;font-weight:600">Itaituba</td><td>BR-163</td><td>218</td><td>R$ 29,5</td><td>9</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+const renderers = {
+  visao: renderVisao,
+  territorios: renderTerritorios,
+  ambiental: renderAmbiental,
+  social: renderSocial,
+  economico: renderEconomico
+};
+
+function switchTab(tabId){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+  document.getElementById('main-content').innerHTML = renderers[tabId]();
+}
+
+document.getElementById('tabs').addEventListener('click', e=>{
+  const tab = e.target.closest('.tab');
+  if(tab) switchTab(tab.dataset.tab);
+});
+
+switchTab('visao');
+</script>
+</body>
+</html>

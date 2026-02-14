@@ -1,0 +1,21 @@
+﻿canonical,label_pt,dtype,kind,required,synonyms,notes
+cod_municipio,Código do Município,string(7),id,sim,Código do Município|Codigo do Municipio|cod_mun|cod_municipio|CD_MUN|id_municipio|Código municipal|Código município|Código do munícipio,Sempre string com 7 dígitos (zfill).
+municipio_nome,Município,string,id,não,Município|Municipio|Municípios|Municipios|nome_municipio|id_municipio_nome|nome do município|Nome do Município,"Nome do município (opcional, pode ser enriquecido depois)."
+sigla_uf,Sigla UF,string(2),id,não,Sigla UF|sigla_uf|UF|Unidade da Federação|Unidade da Federacao,UF do município (opcional).
+ano,Ano,int,time,sim,Ano|ANO|year|Year|YEAR|ano,Ano de referência do dado.
+mes,Mês,int,time,não,Mês|Mes|mes|month|Month|MONTH,1–12. Só quando houver série mensal.
+territorio_id,Código TSBio,int,id,sim,Código TSBio|Codigo TSBio|cod_tsbio|tsbio_id|territorio_id,ID do território TSBio.
+territorio_nome,Nome TSBio,string,id,sim,Nome TSBio|nome_tsbio|TSBio|territorio_nome,Nome do território TSBio.
+categoria,Categoria,string,meta,sim,Categoria|categoria,"Categoria = pasta (ex.: População, Educação, etc.)."
+fonte,Fonte,string,meta,sim,Fonte|fonte|origem|Fonte oficial,Extraída do nome do arquivo antes do primeiro ' - '.
+tema,Tema,string,meta,sim,Tema|tema|indicador|Indicador|Nome do indicador,Extraído do nome do arquivo entre o 1º e 2º ' - '.
+recorte,Recorte,string,meta,não,Recorte|recorte|geografia|nível|nivel,Extraído do nome do arquivo após o 2º ' - ' (opcional).
+dimensao_tdr,Dimensão TdR,string,meta,sim,dimensao_tdr|Dimensão|Dimensao|Dimensão TdR|Dimensao TdR,"socioeconômica, ambiental, produtiva, infraestrutura, políticas_públicas, vulnerabilidades."
+indicador_id,ID do Indicador,string,meta,sim,indicador_id|id_indicador|indicator_id,Determinístico: categoria__fonte__tema__[recorte].
+arquivo_origem,Arquivo origem,string,meta,não,arquivo_origem|arquivo|file|filename|nome_arquivo,Para rastreabilidade (opcional).
+variavel,Variável,string,measure,sim,variavel|variável|variavel_nome|campo|coluna,Nome padronizado (snake_case) da variável no formato long.
+valor,Valor,string/num,measure,sim,valor|value|medida,Valor (pode chegar como texto; consolidado gera valor_num).
+valor_num,Valor numérico,float,measure,não,valor_num|valor_numeric|valor_numerico,Valor convertido para numérico quando possível.
+unidade,Unidade,string,meta,não,unidade|unit|unidades,"ha, km2, perc, rs, pessoas etc. Preferir no catálogo."
+classe,Classe,string,meta,não,classe|class|faixa,Classificação/categorização (ex.: vulnerabilidade).
+observacao,Observação,string,meta,não,observacao|observação|obs|nota|notes,Campo livre.
