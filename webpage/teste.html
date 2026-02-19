@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>TSBio · Painel de Indicadores</title>
+
+    <!-- Fontes (opcional) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&family=Nunito:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      html, body { height: 100%; }
+      body { margin: 0; background: #FAFBFC; }
+      #root { min-height: 100vh; }
+      /* overlay de erro */
+      #__err {
+        position: fixed; inset: 12px; z-index: 99999;
+        background: #fff; border: 1px solid #ffcdd2; border-left: 6px solid #c62828;
+        border-radius: 10px; padding: 12px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        display: none; white-space: pre-wrap; overflow: auto;
+      }
+      #__err b { color: #c62828; }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <div id="__err"></div>
+
+    <!-- React + ReactDOM (UMD) -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+
+    <!-- Recharts (UMD) -->
+    <script crossorigin src="https://unpkg.com/recharts@3.7.0/umd/Recharts.min.js"></script>
+
+    <!-- Babel (para executar JSX sem build) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script>
+      // Mostra erros JS na tela (ajuda muito quando "não deu certo")
+      window.addEventListener("error", (e) => {
+        const box = document.getElementById("__err");
+        box.style.display = "block";
+        box.innerHTML =
+          "<b>Erro:</b> " + (e.message || "desconhecido") +
+          "\n\n<b>Arquivo:</b> " + (e.filename || "") +
+          "\n<b>Linha:</b> " + (e.lineno || "") + ":" + (e.colno || "") +
+          "\n\n<b>Dica:</b> Abra o Console (F12) para detalhes.";
+      });
+    </script>
+
+    <script type="text/babel" data-presets="env,react">
+      /** @jsxRuntime classic */
+      /** @jsx React.createElement */
+
+      // --- substitui seus imports ---
+      const { useState, useMemo } = React;
+      const {
+        BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+        PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+        LineChart, Line, CartesianGrid, Legend, AreaChart, Area,
+        ComposedChart, Scatter
+      } = Recharts;
+
+      // ==========================================================
+      // COLE AQUI O SEU SCRIPT (SEM OS IMPORTS E SEM "export default")
+      //
+      // 1) Apague do seu código:
+      //    - import { useState, useMemo } from "react";
+      //    - import {...} from "recharts";
+      //
+      // 2) Troque:
+      //    - export default function App() { ... }
+      //    por:
+      //    - function App() { ... }
+      //
+      // Cole a partir de:  const TSBIOS = { ... }
+      // até o final do function App(){...}
+      // ==========================================================
+
+      /* >>> COLE A PARTIR DAQUI (exemplo de onde começa)
+      const TSBIOS = { ... };
+      ...
+      function App() { ... }
+      >>> ATÉ AQUI
+      */
+
+      // ==========================================================
+      // Render
+      // ==========================================================
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>

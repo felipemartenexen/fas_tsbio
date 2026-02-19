@@ -1,0 +1,650 @@
+import { useState, useMemo, useRef, useEffect } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, CartesianGrid, LineChart, Line, ComposedChart, Area } from "recharts";
+
+// ═══════════════════════════════════════════════════════
+// THEME & CONSTANTS
+// ═══════════════════════════════════════════════════════
+const T = {
+  green: "#1B7A3D", greenDark: "#0d3f1a", greenLight: "#e6f2eb",
+  blue: "#2E86AB", orange: "#E8871E", purple: "#7B2D8E",
+  red: "#C4342D", gold: "#D4A843", bg: "#f4f7f4",
+  text: "#1a2e1a", textLight: "#6a7a6a", border: "#e0e4e0",
+};
+
+const TSBIO_COLORS = {
+  "Altamira": T.green, "Juruá-Tefé": T.blue, "Macapá": T.orange,
+  "Portel": T.purple, "Rio Branco-Brasiléia": T.red, "Salgado-Bragantino": T.gold,
+};
+const TSBIO_LIST = Object.keys(TSBIO_COLORS);
+
+// ═══════════════════════════════════════════════════════
+// MUNICIPALITY DATA (65 municípios - dados exemplo)
+// ═══════════════════════════════════════════════════════
+const M = [
+  // ALTAMIRA (10)
+  {c:"1500602",n:"Altamira",u:"PA",t:"Altamira",p22:117484,p10:99075,dens:2.3,urb:72.5,rur:27.5,idMed:27,envIdx:22.4,masc:51.2,fem:48.8,br:18.2,pr:8.5,pa:62.1,in:8.2,am:0.3,qi:1.1,pUC:8420,pFav:4250,
+   idhm:.665,idhm_e:.58,idhm_l:.79,idhm_r:.63,gini91:.58,gini00:.62,gini10:.58,rendaPC:598,
+   pibAgro:185420,pibInd:98750,pibServ:412300,pibAdm:685200,pibPC:14250,
+   semInst:38.2,fundComp:22.4,medComp:28.8,supComp:10.6,alfab:85.2,anoEst:7.8,
+   carteira:28.5,contaProp:35.2,setorPub:22.1,setorPriv:14.2,
+   agua:62.3,esgoto:18.5,lixo:78.4,internet:58.2},
+  {c:"1500131",n:"Anapu",u:"PA",t:"Altamira",p22:28798,p10:20543,dens:1.8,urb:42.1,rur:57.9,idMed:24,envIdx:14.2,masc:52.8,fem:47.2,br:12.4,pr:6.2,pa:71.8,in:3.1,am:0.2,qi:0.5,pUC:2100,pFav:0,
+   idhm:.548,idhm_e:.42,idhm_l:.76,idhm_r:.52,gini91:.52,gini00:.55,gini10:.53,rendaPC:385,
+   pibAgro:82400,pibInd:12300,pibServ:45600,pibAdm:198500,pibPC:8450,
+   semInst:48.5,fundComp:24.1,medComp:22.8,supComp:4.6,alfab:78.4,anoEst:5.8,
+   carteira:12.4,contaProp:48.5,setorPub:28.2,setorPriv:10.9,
+   agua:32.5,esgoto:4.2,lixo:52.1,internet:32.4},
+  {c:"1501725",n:"Brasil Novo",u:"PA",t:"Altamira",p22:22840,p10:15690,dens:4.2,urb:48.2,rur:51.8,idMed:25,envIdx:16.1,masc:52.1,fem:47.9,br:15.1,pr:5.8,pa:68.2,in:1.8,am:0.2,qi:0.3,pUC:850,pFav:0,
+   idhm:.577,idhm_e:.48,idhm_l:.77,idhm_r:.51,gini91:.50,gini00:.53,gini10:.51,rendaPC:412,
+   pibAgro:78500,pibInd:8900,pibServ:32100,pibAdm:145200,pibPC:7920,
+   semInst:45.2,fundComp:25.8,medComp:24.1,supComp:4.9,alfab:80.1,anoEst:6.1,
+   carteira:14.2,contaProp:45.8,setorPub:30.1,setorPriv:9.9,
+   agua:35.8,esgoto:5.1,lixo:55.2,internet:35.1},
+  {c:"1504752",n:"Medicilândia",u:"PA",t:"Altamira",p22:33360,p10:27328,dens:3.8,urb:32.5,rur:67.5,idMed:24,envIdx:12.8,masc:53.4,fem:46.6,br:14.2,pr:5.1,pa:72.5,in:0.9,am:0.1,qi:0.2,pUC:420,pFav:0,
+   idhm:.516,idhm_e:.38,idhm_l:.74,idhm_r:.48,gini91:.48,gini00:.51,gini10:.49,rendaPC:378,
+   pibAgro:125800,pibInd:15200,pibServ:42500,pibAdm:185400,pibPC:7150,
+   semInst:52.1,fundComp:22.4,medComp:21.2,supComp:4.3,alfab:74.8,anoEst:5.2,
+   carteira:10.8,contaProp:52.4,setorPub:26.5,setorPriv:10.3,
+   agua:28.4,esgoto:2.8,lixo:45.2,internet:28.5},
+  {c:"1506138",n:"Pacajá",u:"PA",t:"Altamira",p22:51096,p10:39979,dens:2.5,urb:35.2,rur:64.8,idMed:23,envIdx:11.5,masc:53.1,fem:46.9,br:11.5,pr:5.8,pa:74.2,in:2.4,am:0.1,qi:0.4,pUC:1250,pFav:0,
+   idhm:.515,idhm_e:.38,idhm_l:.74,idhm_r:.46,gini91:.52,gini00:.56,gini10:.54,rendaPC:352,
+   pibAgro:142500,pibInd:18400,pibServ:52800,pibAdm:245600,pibPC:6850,
+   semInst:54.8,fundComp:21.2,medComp:19.8,supComp:4.2,alfab:72.6,anoEst:4.8,
+   carteira:9.5,contaProp:55.2,setorPub:25.8,setorPriv:9.5,
+   agua:24.5,esgoto:2.1,lixo:38.5,internet:24.2},
+  {c:"1507805",n:"Sen. J. Porfírio",u:"PA",t:"Altamira",p22:14459,p10:13045,dens:0.4,urb:52.1,rur:47.9,idMed:25,envIdx:18.2,masc:52.5,fem:47.5,br:10.2,pr:4.8,pa:72.1,in:5.6,am:0.1,qi:0.3,pUC:3200,pFav:0,
+   idhm:.527,idhm_e:.42,idhm_l:.75,idhm_r:.45,gini91:.50,gini00:.54,gini10:.52,rendaPC:341,
+   pibAgro:35200,pibInd:5800,pibServ:18500,pibAdm:112400,pibPC:8120,
+   semInst:50.2,fundComp:23.5,medComp:21.8,supComp:4.5,alfab:73.9,anoEst:5.4,
+   carteira:11.2,contaProp:42.8,setorPub:35.2,setorPriv:10.8,
+   agua:38.2,esgoto:5.8,lixo:52.4,internet:30.5},
+  {c:"1508159",n:"Uruará",u:"PA",t:"Altamira",p22:56688,p10:44789,dens:2.6,urb:45.8,rur:54.2,idMed:25,envIdx:15.2,masc:52.4,fem:47.6,br:16.5,pr:5.2,pa:68.8,in:1.2,am:0.1,qi:0.1,pUC:580,pFav:0,
+   idhm:.559,idhm_e:.45,idhm_l:.76,idhm_r:.50,gini91:.49,gini00:.52,gini10:.50,rendaPC:401,
+   pibAgro:168500,pibInd:22400,pibServ:85200,pibAdm:278500,pibPC:7580,
+   semInst:46.8,fundComp:24.5,medComp:23.8,supComp:4.9,alfab:77.3,anoEst:5.9,
+   carteira:13.5,contaProp:48.2,setorPub:27.5,setorPriv:10.8,
+   agua:32.1,esgoto:3.5,lixo:48.5,internet:32.8},
+  {c:"1508084",n:"Vitória do Xingu",u:"PA",t:"Altamira",p22:15665,p10:13431,dens:2.8,urb:55.2,rur:44.8,idMed:26,envIdx:16.8,masc:51.8,fem:48.2,br:14.8,pr:5.5,pa:68.5,in:4.3,am:0.2,qi:0.2,pUC:2850,pFav:0,
+   idhm:.591,idhm_e:.50,idhm_l:.78,idhm_r:.52,gini91:.47,gini00:.50,gini10:.48,rendaPC:485,
+   pibAgro:42500,pibInd:185200,pibServ:62400,pibAdm:125800,pibPC:18520,
+   semInst:42.5,fundComp:25.2,medComp:26.1,supComp:6.2,alfab:79.5,anoEst:6.4,
+   carteira:18.5,contaProp:38.2,setorPub:24.5,setorPriv:18.8,
+   agua:48.5,esgoto:8.2,lixo:65.2,internet:42.5},
+  {c:"1506187",n:"Placas",u:"PA",t:"Altamira",p22:28364,p10:23930,dens:2.1,urb:28.5,rur:71.5,idMed:23,envIdx:10.5,masc:53.8,fem:46.2,br:12.1,pr:4.5,pa:75.2,in:0.7,am:0.1,qi:0.1,pUC:320,pFav:0,
+   idhm:.502,idhm_e:.35,idhm_l:.73,idhm_r:.45,gini91:.50,gini00:.54,gini10:.52,rendaPC:325,
+   pibAgro:95200,pibInd:8500,pibServ:28400,pibAdm:162500,pibPC:6280,
+   semInst:56.2,fundComp:21.5,medComp:18.5,supComp:3.8,alfab:71.2,anoEst:4.5,
+   carteira:8.2,contaProp:58.5,setorPub:24.2,setorPriv:9.1,
+   agua:22.5,esgoto:1.8,lixo:35.2,internet:22.1},
+  {c:"1506351",n:"Porto de Moz",u:"PA",t:"Altamira",p22:40681,p10:33956,dens:2.4,urb:42.8,rur:57.2,idMed:23,envIdx:12.5,masc:52.2,fem:47.8,br:8.5,pr:5.2,pa:72.5,in:6.1,am:0.1,qi:1.5,pUC:5200,pFav:0,
+   idhm:.503,idhm_e:.36,idhm_l:.74,idhm_r:.44,gini91:.54,gini00:.58,gini10:.56,rendaPC:298,
+   pibAgro:72400,pibInd:8200,pibServ:35800,pibAdm:225400,pibPC:6450,
+   semInst:55.8,fundComp:22.1,medComp:18.2,supComp:3.9,alfab:70.8,anoEst:4.6,
+   carteira:8.8,contaProp:45.5,setorPub:35.8,setorPriv:9.9,
+   agua:25.8,esgoto:2.5,lixo:38.8,internet:25.2},
+  // JURUÁ-TEFÉ (14 - showing 7 key ones)
+  {c:"1302603",n:"Tefé",u:"AM",t:"Juruá-Tefé",p22:64470,p10:61453,dens:2.8,urb:78.5,rur:21.5,idMed:24,envIdx:15.8,masc:50.5,fem:49.5,br:12.5,pr:4.2,pa:58.2,in:12.4,am:0.3,qi:0.8,pUC:12500,pFav:2850,
+   idhm:.639,idhm_e:.52,idhm_l:.78,idhm_r:.60,gini91:.57,gini00:.61,gini10:.59,rendaPC:482,
+   pibAgro:45200,pibInd:32500,pibServ:185400,pibAdm:425800,pibPC:9280,
+   semInst:35.2,fundComp:24.8,medComp:28.5,supComp:11.5,alfab:86.3,anoEst:7.5,
+   carteira:22.5,contaProp:32.4,setorPub:32.8,setorPriv:12.3,
+   agua:52.8,esgoto:12.5,lixo:72.4,internet:52.1},
+  {c:"1300706",n:"Carauari",u:"AM",t:"Juruá-Tefé",p22:29445,p10:26723,dens:0.8,urb:62.5,rur:37.5,idMed:22,envIdx:10.2,masc:51.8,fem:48.2,br:8.2,pr:3.5,pa:68.5,in:8.7,am:0.2,qi:0.3,pUC:8500,pFav:0,
+   idhm:.517,idhm_e:.38,idhm_l:.74,idhm_r:.48,gini91:.55,gini00:.59,gini10:.57,rendaPC:312,
+   pibAgro:52400,pibInd:8500,pibServ:42500,pibAdm:218500,pibPC:7450,
+   semInst:52.5,fundComp:22.1,medComp:20.8,supComp:4.6,alfab:73.2,anoEst:5.1,
+   carteira:10.2,contaProp:42.5,setorPub:38.5,setorPriv:8.8,
+   agua:35.2,esgoto:3.5,lixo:48.2,internet:28.5},
+  {c:"1301209",n:"Eirunepé",u:"AM",t:"Juruá-Tefé",p22:35816,p10:31163,dens:1.2,urb:58.2,rur:41.8,idMed:21,envIdx:8.5,masc:51.5,fem:48.5,br:6.5,pr:3.2,pa:62.8,in:15.2,am:0.2,qi:0.2,pUC:4500,pFav:0,
+   idhm:.538,idhm_e:.42,idhm_l:.75,idhm_r:.48,gini91:.53,gini00:.57,gini10:.55,rendaPC:328,
+   pibAgro:28500,pibInd:5200,pibServ:35800,pibAdm:265400,pibPC:7120,
+   semInst:50.8,fundComp:23.2,medComp:21.5,supComp:4.5,alfab:74.8,anoEst:5.2,
+   carteira:8.5,contaProp:38.5,setorPub:42.5,setorPriv:10.5,
+   agua:32.5,esgoto:2.8,lixo:42.5,internet:25.8},
+  {c:"1300201",n:"Alvarães",u:"AM",t:"Juruá-Tefé",p22:16907,p10:14088,dens:3.5,urb:45.2,rur:54.8,idMed:20,envIdx:7.8,masc:51.2,fem:48.8,br:5.2,pr:2.8,pa:55.5,in:18.3,am:0.1,qi:0.2,pUC:3200,pFav:0,
+   idhm:.537,idhm_e:.42,idhm_l:.75,idhm_r:.47,gini91:.50,gini00:.54,gini10:.52,rendaPC:305,
+   pibAgro:22500,pibInd:3200,pibServ:18500,pibAdm:142500,pibPC:6850,
+   semInst:48.5,fundComp:24.2,medComp:22.8,supComp:4.5,alfab:75.6,anoEst:5.5,
+   carteira:8.2,contaProp:42.8,setorPub:40.2,setorPriv:8.8,
+   agua:28.5,esgoto:2.2,lixo:35.8,internet:22.5},
+  {c:"1301803",n:"Japurá",u:"AM",t:"Juruá-Tefé",p22:4845,p10:3907,dens:0.2,urb:52.5,rur:47.5,idMed:19,envIdx:6.2,masc:52.8,fem:47.2,br:3.5,pr:2.1,pa:48.2,in:22.1,am:0.1,qi:0.1,pUC:2800,pFav:0,
+   idhm:.489,idhm_e:.32,idhm_l:.72,idhm_r:.42,gini91:.48,gini00:.52,gini10:.50,rendaPC:262,
+   pibAgro:8500,pibInd:1200,pibServ:5800,pibAdm:62400,pibPC:8520,
+   semInst:58.5,fundComp:20.5,medComp:17.2,supComp:3.8,alfab:67.2,anoEst:4.2,
+   carteira:5.5,contaProp:35.2,setorPub:52.5,setorPriv:6.8,
+   agua:22.5,esgoto:1.2,lixo:28.5,internet:15.8},
+  {c:"1302108",n:"Maraã",u:"AM",t:"Juruá-Tefé",p22:19648,p10:17325,dens:0.9,urb:42.8,rur:57.2,idMed:20,envIdx:7.5,masc:52.1,fem:47.9,br:4.8,pr:2.5,pa:62.5,in:14.5,am:0.1,qi:0.3,pUC:5200,pFav:0,
+   idhm:.498,idhm_e:.34,idhm_l:.73,idhm_r:.44,gini91:.51,gini00:.55,gini10:.53,rendaPC:278,
+   pibAgro:32500,pibInd:4200,pibServ:22500,pibAdm:158400,pibPC:6520,
+   semInst:55.2,fundComp:21.8,medComp:19.2,supComp:3.8,alfab:69.8,anoEst:4.5,
+   carteira:7.2,contaProp:45.2,setorPub:40.5,setorPriv:7.1,
+   agua:25.2,esgoto:1.8,lixo:32.5,internet:18.5},
+  {c:"1301001",n:"Envira",u:"AM",t:"Juruá-Tefé",p22:22400,p10:18479,dens:0.5,urb:55.2,rur:44.8,idMed:20,envIdx:7.2,masc:52.4,fem:47.6,br:5.5,pr:2.8,pa:65.2,in:11.8,am:0.2,qi:0.1,pUC:3800,pFav:0,
+   idhm:.490,idhm_e:.33,idhm_l:.72,idhm_r:.43,gini91:.54,gini00:.58,gini10:.56,rendaPC:258,
+   pibAgro:18500,pibInd:3500,pibServ:28500,pibAdm:185200,pibPC:6180,
+   semInst:58.2,fundComp:20.5,medComp:17.8,supComp:3.5,alfab:66.5,anoEst:4.1,
+   carteira:6.8,contaProp:38.5,setorPub:45.2,setorPriv:9.5,
+   agua:28.5,esgoto:2.1,lixo:35.2,internet:18.2},
+  // MACAPÁ (5)
+  {c:"1600303",n:"Macapá",u:"AP",t:"Macapá",p22:512902,p10:398204,dens:72.5,urb:95.8,rur:4.2,idMed:28,envIdx:18.5,masc:48.8,fem:51.2,br:22.5,pr:12.8,pa:55.2,in:2.1,am:0.5,qi:3.8,pUC:15200,pFav:42500,
+   idhm:.733,idhm_e:.67,idhm_l:.81,idhm_r:.72,gini91:.53,gini00:.57,gini10:.55,rendaPC:785,
+   pibAgro:125800,pibInd:685400,pibServ:2850200,pibAdm:4250800,pibPC:12850,
+   semInst:22.5,fundComp:21.8,medComp:35.2,supComp:20.5,alfab:93.2,anoEst:9.8,
+   carteira:35.2,contaProp:28.5,setorPub:28.2,setorPriv:8.1,
+   agua:48.5,esgoto:8.2,lixo:92.5,internet:72.4},
+  {c:"1600600",n:"Santana",u:"AP",t:"Macapá",p22:123096,p10:101262,dens:55.8,urb:92.5,rur:7.5,idMed:27,envIdx:16.8,masc:49.2,fem:50.8,br:18.5,pr:10.2,pa:58.5,in:1.4,am:0.4,qi:2.9,pUC:4200,pFav:12500,
+   idhm:.692,idhm_e:.60,idhm_l:.80,idhm_r:.68,gini91:.50,gini00:.54,gini10:.52,rendaPC:612,
+   pibAgro:42500,pibInd:285400,pibServ:685200,pibAdm:985400,pibPC:10250,
+   semInst:28.5,fundComp:24.2,medComp:32.5,supComp:14.8,alfab:90.1,anoEst:8.8,
+   carteira:30.5,contaProp:32.1,setorPub:25.5,setorPriv:11.9,
+   agua:42.5,esgoto:6.5,lixo:88.5,internet:62.5},
+  {c:"1600402",n:"Mazagão",u:"AP",t:"Macapá",p22:21904,p10:17032,dens:1.5,urb:52.5,rur:47.5,idMed:24,envIdx:12.5,masc:51.5,fem:48.5,br:10.5,pr:8.2,pa:62.5,in:0.8,am:0.2,qi:8.2,pUC:3500,pFav:0,
+   idhm:.592,idhm_e:.48,idhm_l:.77,idhm_r:.54,gini91:.52,gini00:.56,gini10:.54,rendaPC:418,
+   pibAgro:35200,pibInd:12500,pibServ:28500,pibAdm:165400,pibPC:7850,
+   semInst:42.5,fundComp:25.8,medComp:25.2,supComp:6.5,alfab:82.5,anoEst:6.5,
+   carteira:15.2,contaProp:38.5,setorPub:35.2,setorPriv:11.1,
+   agua:35.2,esgoto:3.8,lixo:55.2,internet:38.5},
+  {c:"1600105",n:"Cutias",u:"AP",t:"Macapá",p22:6016,p10:4696,dens:2.8,urb:48.5,rur:51.5,idMed:22,envIdx:10.2,masc:52.5,fem:47.5,br:8.5,pr:6.2,pa:68.5,in:0.5,am:0.1,qi:5.4,pUC:850,pFav:0,
+   idhm:.542,idhm_e:.42,idhm_l:.75,idhm_r:.48,gini91:.48,gini00:.52,gini10:.50,rendaPC:365,
+   pibAgro:12500,pibInd:2800,pibServ:8500,pibAdm:52400,pibPC:7250,
+   semInst:48.2,fundComp:24.5,medComp:22.8,supComp:4.5,alfab:79.8,anoEst:5.8,
+   carteira:10.5,contaProp:42.5,setorPub:38.2,setorPriv:8.8,
+   agua:28.5,esgoto:2.2,lixo:42.5,internet:28.2},
+  {c:"1600212",n:"Itaubal",u:"AP",t:"Macapá",p22:5348,p10:3685,dens:2.2,urb:45.2,rur:54.8,idMed:21,envIdx:8.5,masc:53.2,fem:46.8,br:7.5,pr:5.8,pa:70.2,in:0.3,am:0.1,qi:4.1,pUC:620,pFav:0,
+   idhm:.535,idhm_e:.40,idhm_l:.74,idhm_r:.47,gini91:.47,gini00:.51,gini10:.49,rendaPC:348,
+   pibAgro:10200,pibInd:2200,pibServ:6500,pibAdm:48500,pibPC:6850,
+   semInst:50.2,fundComp:23.5,medComp:22.1,supComp:4.2,alfab:78.2,anoEst:5.5,
+   carteira:8.8,contaProp:45.2,setorPub:38.5,setorPriv:7.5,
+   agua:25.5,esgoto:1.8,lixo:38.5,internet:25.2},
+  // PORTEL (7)
+  {c:"1506583",n:"Portel",u:"PA",t:"Portel",p22:67015,p10:52172,dens:2.5,urb:42.5,rur:57.5,idMed:21,envIdx:8.5,masc:52.5,fem:47.5,br:5.8,pr:5.2,pa:78.5,in:3.2,am:0.1,qi:2.8,pUC:8500,pFav:1200,
+   idhm:.483,idhm_e:.30,idhm_l:.72,idhm_r:.44,gini91:.58,gini00:.62,gini10:.60,rendaPC:265,
+   pibAgro:85200,pibInd:12500,pibServ:62400,pibAdm:385200,pibPC:5850,
+   semInst:60.2,fundComp:19.5,medComp:16.8,supComp:3.5,alfab:68.4,anoEst:4.2,
+   carteira:7.5,contaProp:42.5,setorPub:40.2,setorPriv:9.8,
+   agua:22.5,esgoto:1.5,lixo:32.5,internet:18.5},
+  {c:"1502152",n:"Bagre",u:"PA",t:"Portel",p22:30090,p10:23863,dens:3.2,urb:32.5,rur:67.5,idMed:20,envIdx:6.8,masc:53.2,fem:46.8,br:4.5,pr:4.8,pa:80.2,in:1.8,am:0.1,qi:1.5,pUC:2200,pFav:0,
+   idhm:.471,idhm_e:.28,idhm_l:.71,idhm_r:.43,gini91:.56,gini00:.60,gini10:.58,rendaPC:238,
+   pibAgro:42500,pibInd:5800,pibServ:22500,pibAdm:185200,pibPC:5120,
+   semInst:64.5,fundComp:18.2,medComp:14.5,supComp:2.8,alfab:64.2,anoEst:3.8,
+   carteira:5.8,contaProp:45.8,setorPub:42.5,setorPriv:5.9,
+   agua:18.5,esgoto:1.2,lixo:25.5,internet:12.5},
+  {c:"1503754",n:"Gurupá",u:"PA",t:"Portel",p22:37568,p10:29647,dens:1.2,urb:38.5,rur:61.5,idMed:21,envIdx:7.5,masc:52.8,fem:47.2,br:5.2,pr:4.5,pa:76.8,in:2.1,am:0.1,qi:4.2,pUC:5800,pFav:0,
+   idhm:.509,idhm_e:.38,idhm_l:.73,idhm_r:.45,gini91:.54,gini00:.58,gini10:.56,rendaPC:278,
+   pibAgro:55200,pibInd:8500,pibServ:32500,pibAdm:245800,pibPC:6280,
+   semInst:56.5,fundComp:21.2,medComp:18.5,supComp:3.8,alfab:70.5,anoEst:4.5,
+   carteira:7.2,contaProp:45.2,setorPub:38.8,setorPriv:8.8,
+   agua:20.5,esgoto:1.5,lixo:30.5,internet:15.8},
+  {c:"1504455",n:"Melgaço",u:"PA",t:"Portel",p22:32890,p10:24808,dens:3.8,urb:28.5,rur:71.5,idMed:19,envIdx:5.8,masc:53.5,fem:46.5,br:3.8,pr:4.2,pa:82.5,in:1.5,am:0.1,qi:1.8,pUC:1800,pFav:0,
+   idhm:.418,idhm_e:.22,idhm_l:.68,idhm_r:.39,gini91:.60,gini00:.64,gini10:.62,rendaPC:198,
+   pibAgro:38500,pibInd:4200,pibServ:18500,pibAdm:198500,pibPC:4520,
+   semInst:68.5,fundComp:16.5,medComp:12.5,supComp:2.5,alfab:59.8,anoEst:3.2,
+   carteira:4.5,contaProp:48.5,setorPub:42.5,setorPriv:4.5,
+   agua:15.2,esgoto:0.8,lixo:22.5,internet:8.5},
+  {c:"1500909",n:"Anajás",u:"PA",t:"Portel",p22:33400,p10:24924,dens:3.5,urb:35.2,rur:64.8,idMed:20,envIdx:6.5,masc:53.1,fem:46.9,br:4.2,pr:4.5,pa:80.5,in:0.9,am:0.1,qi:2.1,pUC:1500,pFav:0,
+   idhm:.472,idhm_e:.29,idhm_l:.71,idhm_r:.43,gini91:.55,gini00:.59,gini10:.57,rendaPC:242,
+   pibAgro:48500,pibInd:6200,pibServ:25800,pibAdm:198500,pibPC:5450,
+   semInst:62.5,fundComp:18.8,medComp:15.2,supComp:3.5,alfab:65.1,anoEst:3.9,
+   carteira:6.2,contaProp:45.5,setorPub:42.2,setorPriv:6.1,
+   agua:18.2,esgoto:1.2,lixo:28.5,internet:12.8},
+  {c:"1502301",n:"Breves",u:"PA",t:"Portel",p22:104220,p10:92860,dens:10.5,urb:55.2,rur:44.8,idMed:22,envIdx:10.2,masc:51.5,fem:48.5,br:6.5,pr:5.8,pa:75.2,in:1.2,am:0.1,qi:3.5,pUC:4200,pFav:3500,
+   idhm:.503,idhm_e:.36,idhm_l:.73,idhm_r:.45,gini91:.57,gini00:.61,gini10:.59,rendaPC:295,
+   pibAgro:125800,pibInd:28500,pibServ:145200,pibAdm:625800,pibPC:6250,
+   semInst:52.8,fundComp:22.5,medComp:20.2,supComp:4.5,alfab:72.3,anoEst:4.8,
+   carteira:10.5,contaProp:42.5,setorPub:35.8,setorPriv:11.2,
+   agua:28.5,esgoto:2.5,lixo:42.5,internet:25.2},
+  {c:"1502400",n:"Curralinho",u:"PA",t:"Portel",p22:34912,p10:28549,dens:12.5,urb:32.8,rur:67.2,idMed:20,envIdx:6.2,masc:53.2,fem:46.8,br:3.5,pr:4.2,pa:82.8,in:0.6,am:0.1,qi:1.9,pUC:1200,pFav:0,
+   idhm:.455,idhm_e:.26,idhm_l:.70,idhm_r:.42,gini91:.59,gini00:.63,gini10:.61,rendaPC:215,
+   pibAgro:42500,pibInd:5200,pibServ:22500,pibAdm:215800,pibPC:4850,
+   semInst:66.2,fundComp:17.5,medComp:13.8,supComp:2.5,alfab:62.7,anoEst:3.5,
+   carteira:5.2,contaProp:48.2,setorPub:42.5,setorPriv:4.1,
+   agua:15.8,esgoto:0.8,lixo:22.8,internet:10.5},
+  // RIO BRANCO-BRASILÉIA (6 key)
+  {c:"1200401",n:"Rio Branco",u:"AC",t:"Rio Branco-Brasiléia",p22:413418,p10:336038,dens:46.5,urb:91.8,rur:8.2,idMed:29,envIdx:22.5,masc:48.5,fem:51.5,br:25.2,pr:8.5,pa:55.8,in:3.2,am:0.5,qi:1.5,pUC:12500,pFav:35200,
+   idhm:.727,idhm_e:.65,idhm_l:.81,idhm_r:.71,gini91:.54,gini00:.58,gini10:.56,rendaPC:758,
+   pibAgro:285400,pibInd:485200,pibServ:2450800,pibAdm:3850200,pibPC:14520,
+   semInst:20.5,fundComp:22.5,medComp:36.2,supComp:20.8,alfab:91.8,anoEst:9.5,
+   carteira:32.5,contaProp:30.2,setorPub:28.5,setorPriv:8.8,
+   agua:52.5,esgoto:22.5,lixo:95.2,internet:72.5},
+  {c:"1200104",n:"Brasiléia",u:"AC",t:"Rio Branco-Brasiléia",p22:26702,p10:21398,dens:5.8,urb:68.5,rur:31.5,idMed:27,envIdx:18.2,masc:51.2,fem:48.8,br:18.5,pr:6.2,pa:62.5,in:2.8,am:0.3,qi:0.8,pUC:4200,pFav:0,
+   idhm:.614,idhm_e:.52,idhm_l:.78,idhm_r:.55,gini91:.51,gini00:.55,gini10:.53,rendaPC:445,
+   pibAgro:48500,pibInd:18500,pibServ:85200,pibAdm:185400,pibPC:8520,
+   semInst:38.5,fundComp:25.2,medComp:28.5,supComp:7.8,alfab:82.4,anoEst:6.8,
+   carteira:18.5,contaProp:38.5,setorPub:32.5,setorPriv:10.5,
+   agua:42.5,esgoto:8.5,lixo:72.5,internet:48.5},
+  {c:"1200203",n:"Xapuri",u:"AC",t:"Rio Branco-Brasiléia",p22:20280,p10:16091,dens:2.8,urb:62.5,rur:37.5,idMed:26,envIdx:16.8,masc:51.5,fem:48.5,br:16.5,pr:5.8,pa:65.2,in:1.5,am:0.2,qi:0.6,pUC:8500,pFav:0,
+   idhm:.599,idhm_e:.50,idhm_l:.77,idhm_r:.54,gini91:.50,gini00:.54,gini10:.52,rendaPC:425,
+   pibAgro:42500,pibInd:12500,pibServ:52400,pibAdm:148500,pibPC:8250,
+   semInst:40.5,fundComp:25.8,medComp:26.5,supComp:7.2,alfab:80.6,anoEst:6.5,
+   carteira:16.5,contaProp:42.5,setorPub:30.2,setorPriv:10.8,
+   agua:38.5,esgoto:6.5,lixo:65.2,internet:42.5},
+  {c:"1200302",n:"Sena Madureira",u:"AC",t:"Rio Branco-Brasiléia",p22:46511,p10:38029,dens:1.8,urb:62.5,rur:37.5,idMed:24,envIdx:14.5,masc:51.8,fem:48.2,br:14.2,pr:5.5,pa:65.8,in:5.8,am:0.2,qi:0.4,pUC:8200,pFav:0,
+   idhm:.575,idhm_e:.46,idhm_l:.76,idhm_r:.52,gini91:.53,gini00:.57,gini10:.55,rendaPC:398,
+   pibAgro:85200,pibInd:22500,pibServ:125800,pibAdm:285400,pibPC:7850,
+   semInst:44.5,fundComp:24.2,medComp:24.8,supComp:6.5,alfab:78.2,anoEst:6.2,
+   carteira:14.5,contaProp:42.5,setorPub:32.5,setorPriv:10.5,
+   agua:35.2,esgoto:5.2,lixo:58.5,internet:38.2},
+  {c:"1200906",n:"Sta Rosa Purus",u:"AC",t:"Rio Branco-Brasiléia",p22:7045,p10:4691,dens:0.3,urb:42.5,rur:57.5,idMed:18,envIdx:5.2,masc:54.5,fem:45.5,br:5.2,pr:2.5,pa:38.5,in:42.5,am:0.1,qi:0.1,pUC:4500,pFav:0,
+   idhm:.468,idhm_e:.28,idhm_l:.70,idhm_r:.42,gini91:.56,gini00:.60,gini10:.58,rendaPC:248,
+   pibAgro:8500,pibInd:1200,pibServ:5800,pibAdm:62500,pibPC:7850,
+   semInst:65.2,fundComp:18.5,medComp:13.8,supComp:2.5,alfab:62.4,anoEst:3.5,
+   carteira:4.5,contaProp:35.2,setorPub:52.5,setorPriv:7.8,
+   agua:18.5,esgoto:1.2,lixo:25.5,internet:12.5},
+  {c:"1200344",n:"Sen. Guiomard",u:"AC",t:"Rio Branco-Brasiléia",p22:23236,p10:20179,dens:12.5,urb:55.2,rur:44.8,idMed:26,envIdx:16.2,masc:51.5,fem:48.5,br:16.2,pr:6.8,pa:68.5,in:0.6,am:0.2,qi:0.3,pUC:1200,pFav:0,
+   idhm:.563,idhm_e:.45,idhm_l:.76,idhm_r:.50,gini91:.50,gini00:.54,gini10:.52,rendaPC:392,
+   pibAgro:52400,pibInd:18500,pibServ:65200,pibAdm:145800,pibPC:7250,
+   semInst:44.2,fundComp:25.5,medComp:24.8,supComp:5.5,alfab:77.8,anoEst:6.0,
+   carteira:14.5,contaProp:45.2,setorPub:28.5,setorPriv:11.8,
+   agua:35.2,esgoto:5.5,lixo:58.2,internet:38.5},
+  // SALGADO-BRAGANTINO (8 key)
+  {c:"1502608",n:"Bragança",u:"PA",t:"Salgado-Bragantino",p22:122881,p10:113227,dens:51.2,urb:68.5,rur:31.5,idMed:28,envIdx:25.8,masc:49.5,fem:50.5,br:18.5,pr:8.2,pa:62.5,in:0.3,am:0.2,qi:4.2,pUC:850,pFav:5200,
+   idhm:.600,idhm_e:.50,idhm_l:.78,idhm_r:.54,gini91:.52,gini00:.56,gini10:.54,rendaPC:428,
+   pibAgro:185200,pibInd:85400,pibServ:425800,pibAdm:785200,pibPC:8520,
+   semInst:38.5,fundComp:25.2,medComp:28.5,supComp:7.8,alfab:83.5,anoEst:7.2,
+   carteira:18.5,contaProp:38.5,setorPub:30.2,setorPriv:12.8,
+   agua:52.5,esgoto:12.5,lixo:78.5,internet:52.5},
+  {c:"1507300",n:"Salinópolis",u:"PA",t:"Salgado-Bragantino",p22:42187,p10:37421,dens:152.5,urb:82.5,rur:17.5,idMed:29,envIdx:22.5,masc:49.8,fem:50.2,br:20.5,pr:7.5,pa:60.2,in:0.1,am:0.3,qi:2.1,pUC:280,pFav:2800,
+   idhm:.618,idhm_e:.52,idhm_l:.79,idhm_r:.56,gini91:.50,gini00:.54,gini10:.52,rendaPC:465,
+   pibAgro:25800,pibInd:42500,pibServ:285200,pibAdm:285400,pibPC:9850,
+   semInst:32.5,fundComp:24.8,medComp:30.5,supComp:12.2,alfab:85.2,anoEst:7.8,
+   carteira:22.5,contaProp:35.2,setorPub:28.5,setorPriv:13.8,
+   agua:55.2,esgoto:8.5,lixo:82.5,internet:55.8},
+  {c:"1508001",n:"Viseu",u:"PA",t:"Salgado-Bragantino",p22:61523,p10:56716,dens:8.2,urb:42.5,rur:57.5,idMed:24,envIdx:14.5,masc:52.2,fem:47.8,br:10.5,pr:6.5,pa:72.5,in:0.5,am:0.1,qi:5.8,pUC:520,pFav:0,
+   idhm:.515,idhm_e:.38,idhm_l:.74,idhm_r:.46,gini91:.54,gini00:.58,gini10:.56,rendaPC:312,
+   pibAgro:125800,pibInd:22500,pibServ:85200,pibAdm:385200,pibPC:6250,
+   semInst:52.5,fundComp:22.5,medComp:20.2,supComp:4.8,alfab:72.8,anoEst:5.2,
+   carteira:10.5,contaProp:48.5,setorPub:30.2,setorPriv:10.8,
+   agua:28.5,esgoto:2.5,lixo:42.5,internet:28.5},
+  {c:"1500800",n:"Augusto Corrêa",u:"PA",t:"Salgado-Bragantino",p22:44734,p10:40497,dens:58.5,urb:35.2,rur:64.8,idMed:25,envIdx:16.8,masc:51.5,fem:48.5,br:12.5,pr:7.2,pa:68.5,in:0.2,am:0.1,qi:3.5,pUC:320,pFav:0,
+   idhm:.528,idhm_e:.40,idhm_l:.75,idhm_r:.46,gini91:.53,gini00:.57,gini10:.55,rendaPC:325,
+   pibAgro:85200,pibInd:18500,pibServ:52400,pibAdm:285200,pibPC:5850,
+   semInst:50.2,fundComp:23.5,medComp:21.8,supComp:4.5,alfab:74.2,anoEst:5.5,
+   carteira:10.8,contaProp:48.5,setorPub:28.5,setorPriv:12.2,
+   agua:28.5,esgoto:2.8,lixo:45.2,internet:28.5},
+  {c:"1501006",n:"Curuçá",u:"PA",t:"Salgado-Bragantino",p22:38440,p10:34294,dens:105.2,urb:48.5,rur:51.5,idMed:26,envIdx:18.2,masc:51.2,fem:48.8,br:14.5,pr:6.8,pa:65.2,in:0.1,am:0.1,qi:2.8,pUC:180,pFav:0,
+   idhm:.554,idhm_e:.44,idhm_l:.76,idhm_r:.50,gini91:.51,gini00:.55,gini10:.53,rendaPC:365,
+   pibAgro:65200,pibInd:22500,pibServ:85200,pibAdm:245800,pibPC:7250,
+   semInst:45.2,fundComp:24.8,medComp:24.5,supComp:5.5,alfab:78.6,anoEst:6.2,
+   carteira:12.5,contaProp:45.2,setorPub:28.5,setorPriv:13.8,
+   agua:32.5,esgoto:3.5,lixo:52.5,internet:32.5},
+  {c:"1507904",n:"Tracuateua",u:"PA",t:"Salgado-Bragantino",p22:32462,p10:27455,dens:42.5,urb:28.5,rur:71.5,idMed:24,envIdx:14.2,masc:51.8,fem:48.2,br:8.5,pr:7.8,pa:70.5,in:0.2,am:0.1,qi:6.5,pUC:420,pFav:0,
+   idhm:.521,idhm_e:.38,idhm_l:.74,idhm_r:.47,gini91:.53,gini00:.57,gini10:.55,rendaPC:318,
+   pibAgro:52400,pibInd:12500,pibServ:42500,pibAdm:218500,pibPC:5850,
+   semInst:52.8,fundComp:22.5,medComp:20.2,supComp:4.5,alfab:73.8,anoEst:5.2,
+   carteira:8.5,contaProp:52.5,setorPub:28.5,setorPriv:10.5,
+   agua:25.5,esgoto:2.2,lixo:38.5,internet:25.2},
+  {c:"1507102",n:"Vigia",u:"PA",t:"Salgado-Bragantino",p22:52865,p10:47889,dens:145.2,urb:72.5,rur:27.5,idMed:28,envIdx:22.8,masc:49.8,fem:50.2,br:18.2,pr:7.5,pa:62.5,in:0.1,am:0.2,qi:1.8,pUC:150,pFav:2500,
+   idhm:.604,idhm_e:.52,idhm_l:.78,idhm_r:.54,gini91:.51,gini00:.55,gini10:.53,rendaPC:442,
+   pibAgro:42500,pibInd:65200,pibServ:285200,pibAdm:385400,pibPC:8850,
+   semInst:35.2,fundComp:25.5,medComp:28.8,supComp:10.5,alfab:84.2,anoEst:7.5,
+   carteira:20.5,contaProp:35.5,setorPub:28.5,setorPriv:15.5,
+   agua:48.5,esgoto:8.5,lixo:75.2,internet:52.5},
+  {c:"1504604",n:"Maracanã",u:"PA",t:"Salgado-Bragantino",p22:30600,p10:28376,dens:85.2,urb:45.2,rur:54.8,idMed:26,envIdx:18.5,masc:51.2,fem:48.8,br:14.2,pr:6.5,pa:66.5,in:0.1,am:0.1,qi:2.2,pUC:210,pFav:0,
+   idhm:.570,idhm_e:.46,idhm_l:.77,idhm_r:.52,gini91:.50,gini00:.54,gini10:.52,rendaPC:385,
+   pibAgro:55200,pibInd:18500,pibServ:85200,pibAdm:225800,pibPC:7520,
+   semInst:42.5,fundComp:25.2,medComp:26.2,supComp:6.1,alfab:80.1,anoEst:6.5,
+   carteira:14.5,contaProp:42.5,setorPub:28.5,setorPriv:14.5,
+   agua:35.2,esgoto:3.8,lixo:55.2,internet:35.8},
+];
+
+const DIMS = [
+  {id:"socio",l:"Socioeconômica",i:"👥",on:true},
+  {id:"amb",l:"Ambiental",i:"🌿",on:false},
+  {id:"prod",l:"Produtiva",i:"🌾",on:false},
+  {id:"infra",l:"Infraestrutura",i:"🏗️",on:false},
+  {id:"pol",l:"Políticas Públicas",i:"📋",on:false},
+  {id:"vuln",l:"Vulnerabilidades",i:"⚠️",on:false},
+];
+
+const SUBTABS = [
+  {id:"demo",l:"Perfil Demográfico",i:"📊"},
+  {id:"econ",l:"Economia & Índices",i:"💰"},
+  {id:"edu",l:"Educação",i:"📚"},
+  {id:"trab",l:"Trabalho & Renda",i:"👷"},
+  {id:"povos",l:"Povos Tradicionais",i:"🏕️"},
+  {id:"dom",l:"Domicílios",i:"🏠"},
+];
+
+// ═══════════════════════════════════════════════════════
+// REUSABLE COMPONENTS
+// ═══════════════════════════════════════════════════════
+const FB = ({f}) => <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:16,background:"rgba(27,122,61,0.08)",color:T.green,fontSize:10,fontWeight:600,border:"1px solid rgba(27,122,61,0.15)"}}>📊 {f}</span>;
+
+const CC = ({title,fonte,periodo,children,h=260}) => (
+  <div style={{background:"#fff",borderRadius:12,padding:"16px 18px 12px",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",border:`1px solid ${T.border}`,display:"flex",flexDirection:"column",gap:8}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+      <h3 style={{margin:0,fontSize:13.5,fontWeight:700,color:T.text,lineHeight:1.3}}>{title}</h3>
+      <FB f={fonte}/>
+    </div>
+    <div style={{height:h,minHeight:0}}>{children}</div>
+    {periodo&&<div style={{fontSize:10,color:T.textLight,borderTop:"1px solid #f0f2f0",paddingTop:6}}>Período: {periodo}</div>}
+  </div>
+);
+
+const KPI = ({l,v,u,i,c}) => (
+  <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",border:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:12}}>
+    <div style={{width:42,height:42,borderRadius:10,background:`${c}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{i}</div>
+    <div>
+      <div style={{fontSize:20,fontWeight:800,color:c||T.text,lineHeight:1.1}}>{v}<span style={{fontSize:12,fontWeight:500,marginLeft:2}}>{u}</span></div>
+      <div style={{fontSize:11,color:T.textLight,marginTop:1,fontWeight:500}}>{l}</div>
+    </div>
+  </div>
+);
+
+const CTip = ({active,payload,label})=>{
+  if(!active||!payload?.length)return null;
+  return <div style={{background:T.greenDark,color:"#fff",padding:"8px 12px",borderRadius:8,fontSize:11,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",maxWidth:280}}>
+    <div style={{fontWeight:700,marginBottom:3}}>{label}</div>
+    {payload.map((p,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:5,marginTop:1}}>
+      <span style={{width:7,height:7,borderRadius:7,background:p.color,flexShrink:0}}/><span>{p.name}: <b>{typeof p.value==='number'?p.value.toLocaleString('pt-BR'):p.value}</b></span>
+    </div>)}
+  </div>;
+};
+
+const MultiSel = ({label,opts,sel,onChange,cmap})=>{
+  const[open,setOpen]=useState(false);const ref=useRef(null);
+  useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false)};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h)},[]);
+  const all=sel.length===opts.length;
+  const tog=v=>onChange(sel.includes(v)?sel.filter(x=>x!==v):[...sel,v]);
+  const txt=all?`Todos (${opts.length})`:sel.length===0?"Nenhum":sel.length<=2?sel.join(", "):`${sel.length} selecionados`;
+  return <div ref={ref} style={{position:"relative",minWidth:190}}>
+    <label style={{fontSize:10,fontWeight:700,color:"#5a6a5a",textTransform:"uppercase",letterSpacing:1,marginBottom:3,display:"block"}}>{label}</label>
+    <button onClick={()=>setOpen(!open)} style={{width:"100%",padding:"7px 12px",borderRadius:8,border:"1.5px solid #c8d0c8",background:"#fff",cursor:"pointer",textAlign:"left",fontSize:12,fontWeight:600,color:T.text,display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
+      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{txt}</span>
+      <span style={{transform:open?"rotate(180deg)":"rotate(0)",transition:"transform 0.2s",fontSize:9,marginLeft:6}}>▼</span>
+    </button>
+    {open&&<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#fff",borderRadius:8,border:"1.5px solid #c8d0c8",marginTop:3,zIndex:100,maxHeight:260,overflowY:"auto",boxShadow:"0 8px 20px rgba(0,0,0,0.12)"}}>
+      <div onClick={()=>onChange(all?[]:opts.map(o=>o.value))} style={{padding:"7px 12px",cursor:"pointer",fontSize:11,fontWeight:700,borderBottom:"1px solid #f0f2f0",color:T.green,display:"flex",alignItems:"center",gap:6}}>
+        <span style={{width:14,height:14,borderRadius:3,border:`2px solid ${all?T.green:"#c8d0c8"}`,background:all?T.green:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:9}}>{all?"✓":""}</span>Selecionar todos
+      </div>
+      {opts.map(o=>{const ch=sel.includes(o.value);const dc=cmap?.[o.value];return <div key={o.value} onClick={()=>tog(o.value)} style={{padding:"6px 12px",cursor:"pointer",fontSize:11,fontWeight:500,display:"flex",alignItems:"center",gap:6,background:ch?"rgba(27,122,61,0.03)":"transparent"}}>
+        <span style={{width:14,height:14,borderRadius:3,border:`2px solid ${ch?T.green:"#c8d0c8"}`,background:ch?T.green:"#fff",display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:9,flexShrink:0}}>{ch?"✓":""}</span>
+        {dc&&<span style={{width:7,height:7,borderRadius:7,background:dc,flexShrink:0}}/>}{o.label}
+      </div>})}
+    </div>}
+  </div>;
+};
+
+// ═══════════════════════════════════════════════════════
+// MAIN DASHBOARD
+// ═══════════════════════════════════════════════════════
+export default function Dashboard(){
+  const[dim,setDim]=useState("socio");
+  const[sub,setSub]=useState("demo");
+  const[selT,setSelT]=useState(TSBIO_LIST);
+  const[selM,setSelM]=useState([]);
+
+  const fM=useMemo(()=>M.filter(m=>selT.includes(m.t)),[selT]);
+  const mOpts=useMemo(()=>fM.map(m=>({value:m.c,label:`${m.n} (${m.u})`})),[fM]);
+  useEffect(()=>setSelM([]),[selT]);
+  const D=useMemo(()=>selM.length>0?fM.filter(m=>selM.includes(m.c)):fM,[fM,selM]);
+
+  // Aggregate by TSBio
+  const byT=useMemo(()=>{
+    const g={};D.forEach(m=>{if(!g[m.t])g[m.t]=[];g[m.t].push(m)});
+    return Object.entries(g).map(([t,ms])=>{
+      const n=ms.length;const sum=(k)=>ms.reduce((s,m)=>s+m[k],0);const avg=(k)=>+(sum(k)/n).toFixed(2);
+      return{t,n,pop:sum('p22'),pop10:sum('p10'),dens:avg('dens'),urb:avg('urb'),rur:avg('rur'),
+        idhm:avg('idhm'),idhm_e:avg('idhm_e'),idhm_l:avg('idhm_l'),idhm_r:avg('idhm_r'),
+        gini10:avg('gini10'),rendaPC:Math.round(avg('rendaPC')),alfab:avg('alfab'),anoEst:avg('anoEst'),
+        pibAgro:sum('pibAgro'),pibInd:sum('pibInd'),pibServ:sum('pibServ'),pibAdm:sum('pibAdm'),
+        semInst:avg('semInst'),supComp:avg('supComp'),
+        carteira:avg('carteira'),contaProp:avg('contaProp'),setorPub:avg('setorPub'),
+        agua:avg('agua'),esgoto:avg('esgoto'),lixo:avg('lixo'),internet:avg('internet'),
+        in_avg:avg('in'),qi_avg:avg('qi')
+      };
+    });
+  },[D]);
+
+  const totPop=D.reduce((s,m)=>s+m.p22,0);
+  const avgIDHM=D.length?+(D.reduce((s,m)=>s+m.idhm,0)/D.length).toFixed(3):0;
+  const avgGini=D.length?+(D.reduce((s,m)=>s+m.gini10,0)/D.length).toFixed(2):0;
+  const avgRenda=D.length?Math.round(D.reduce((s,m)=>s+m.rendaPC,0)/D.length):0;
+  const avgAlfab=D.length?+(D.reduce((s,m)=>s+m.alfab,0)/D.length).toFixed(1):0;
+  const sh=(s)=>s.length>13?s.slice(0,12)+"…":s;
+
+  // ─── PERFIL DEMOGRÁFICO ───
+  const renderDemo=()=>{
+    const popBar=byT.map(t=>({name:sh(t.t),full:t.t,Pop2022:t.pop,Pop2010:t.pop10})).sort((a,b)=>b.Pop2022-a.Pop2022);
+    const cresc=byT.map(t=>({name:sh(t.t),full:t.t,"Cresc. (%)":+((t.pop-t.pop10)/t.pop10*100).toFixed(1)}));
+    const urbRur=byT.map(t=>({name:sh(t.t),full:t.t,"Urbana":t.urb,"Rural":t.rur}));
+    const top12=[...D].sort((a,b)=>b.p22-a.p22).slice(0,12).map(m=>({name:sh(m.n),full:m.n,Pop:m.p22,fill:TSBIO_COLORS[m.t]}));
+    const raca=byT.map(t=>{const ms=D.filter(m=>m.t===t.t);const n=ms.length;return{name:sh(t.t),Branca:+(ms.reduce((s,m)=>s+m.br,0)/n).toFixed(1),Preta:+(ms.reduce((s,m)=>s+m.pr,0)/n).toFixed(1),Parda:+(ms.reduce((s,m)=>s+m.pa,0)/n).toFixed(1),Indígena:+(ms.reduce((s,m)=>s+m.in,0)/n).toFixed(1)}});
+    const densRank=[...D].sort((a,b)=>b.dens-a.dens).slice(0,10).map(m=>({name:sh(m.n),full:m.n,"hab/km²":m.dens,fill:TSBIO_COLORS[m.t]}));
+    const popTotal10=D.reduce((s,m)=>s+m.p10,0);const crescTotal=((totPop-popTotal10)/popTotal10*100).toFixed(1);
+
+    return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
+        <KPI l="População Total (2022)" v={totPop.toLocaleString("pt-BR")} i="👥" c={T.green}/>
+        <KPI l="Crescimento 2010→2022" v={`+${crescTotal}`} u="%" i="📈" c={T.blue}/>
+        <KPI l="Taxa Alfabetização" v={avgAlfab} u="%" i="📚" c={T.purple}/>
+        <KPI l="Nº Municípios" v={D.length} i="🏛️" c={T.orange}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:14}}>
+        <CC title="População por TSBio — 2010 vs 2022" fonte="IBGE Censo 2022" periodo="2010, 2022">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={popBar} margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:v} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+              <Bar dataKey="Pop2010" fill="#b0c4b0" radius={[4,4,0,0]} name="2010"/>
+              <Bar dataKey="Pop2022" radius={[4,4,0,0]} name="2022">{popBar.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="Crescimento Intercensitário (%)" fonte="IBGE Censo 2022" periodo="2010→2022">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={cresc} margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}} unit="%"/>
+              <Tooltip content={<CTip/>}/>
+              <Bar dataKey="Cresc. (%)" radius={[4,4,0,0]}>{cresc.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="Situação do Domicílio — Urbano vs Rural (%)" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={urbRur} layout="vertical" margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" domain={[0,100]} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={95} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+              <Bar dataKey="Urbana" stackId="a" fill={T.blue} radius={[0,0,0,0]}/>
+              <Bar dataKey="Rural" stackId="a" fill={T.green} radius={[0,4,4,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="Composição por Cor/Raça (% média)" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={raca} margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+              <Bar dataKey="Parda" stackId="a" fill="#D4A843"/>
+              <Bar dataKey="Branca" stackId="a" fill="#8cb4d8"/>
+              <Bar dataKey="Preta" stackId="a" fill="#6a4c93"/>
+              <Bar dataKey="Indígena" stackId="a" fill={T.red}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="Top 12 Municípios por População" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={top12} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:v} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/>
+              <Bar dataKey="Pop" radius={[0,4,4,0]}>{top12.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="Top 10 Densidade Demográfica (hab/km²)" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={densRank} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/>
+              <Bar dataKey="hab/km²" radius={[0,4,4,0]}>{densRank.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+      </div>
+    </div>;
+  };
+
+  // ─── ECONOMIA & ÍNDICES ───
+  const renderEcon=()=>{
+    const pibComp=byT.map(t=>{const total=t.pibAgro+t.pibInd+t.pibServ+t.pibAdm;return{name:sh(t.t),full:t.t,Agropecuária:+(t.pibAgro/total*100).toFixed(1),Indústria:+(t.pibInd/total*100).toFixed(1),Serviços:+(t.pibServ/total*100).toFixed(1),"Adm. Pública":+(t.pibAdm/total*100).toFixed(1)}});
+    const radarData=byT.map(t=>({t:t.t,name:sh(t.t),"Educação":+(t.idhm_e*100).toFixed(0),"Longevidade":+(t.idhm_l*100).toFixed(0),"Renda":+(+(byT.find(x=>x.t===t.t)?.idhm_r||0)*100).toFixed(0)}));
+    const idhmBar=byT.map(t=>({name:sh(t.t),full:t.t,IDHM:t.idhm,"IDHM-E":t.idhm_e,"IDHM-L":t.idhm_l,"IDHM-R":t.idhm_r}));
+    const rendaRank=[...D].sort((a,b)=>b.rendaPC-a.rendaPC).slice(0,12).map(m=>({name:sh(m.n),full:m.n,"R$ per capita":m.rendaPC,fill:TSBIO_COLORS[m.t]}));
+    const giniData=byT.map(t=>{const ms=D.filter(m=>m.t===t.t);const n=ms.length;return{name:sh(t.t),full:t.t,"1991":+(ms.reduce((s,m)=>s+m.gini91,0)/n).toFixed(2),"2000":+(ms.reduce((s,m)=>s+m.gini00,0)/n).toFixed(2),"2010":+(ms.reduce((s,m)=>s+m.gini10,0)/n).toFixed(2)}});
+    const pibPCbar=byT.map(t=>{const ms=D.filter(m=>m.t===t.t);return{name:sh(t.t),full:t.t,"PIB per capita":Math.round(ms.reduce((s,m)=>s+m.pibPC,0)/ms.length)}});
+    const totalPIB=D.reduce((s,m)=>s+m.pibAgro+m.pibInd+m.pibServ+m.pibAdm,0);
+
+    return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
+        <KPI l="PIB Total (R$ mil)" v={(totalPIB/1000).toLocaleString("pt-BR",{maximumFractionDigits:0})} u="mi" i="💰" c={T.green}/>
+        <KPI l="IDHM Médio" v={avgIDHM} i="📈" c={T.blue}/>
+        <KPI l="Gini Médio (2010)" v={avgGini} i="⚖️" c={T.orange}/>
+        <KPI l="Renda PC Média" v={`R$${avgRenda}`} i="💵" c={T.purple}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:14}}>
+        <CC title="Composição do PIB por Setor (%)" fonte="IBGE PIB Municipal" periodo="2021">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={pibComp} margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis domain={[0,100]} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+              <Bar dataKey="Agropecuária" stackId="a" fill={T.green}/>
+              <Bar dataKey="Indústria" stackId="a" fill={T.blue}/>
+              <Bar dataKey="Serviços" stackId="a" fill={T.orange}/>
+              <Bar dataKey="Adm. Pública" stackId="a" fill={T.purple}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="IDHM Desagregado por Dimensão" fonte="Atlas do Desenvolvimento Humano" periodo="2010">
+          <ResponsiveContainer width="100%" height={250}>
+            <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+              <PolarGrid stroke="#ddd"/><PolarAngleAxis dataKey="name" tick={{fontSize:10}}/>
+              <PolarRadiusAxis angle={90} domain={[20,90]} tick={{fontSize:9}}/>
+              <Radar name="Educação" dataKey="Educação" stroke={T.blue} fill={T.blue} fillOpacity={0.15} strokeWidth={2}/>
+              <Radar name="Longevidade" dataKey="Longevidade" stroke={T.green} fill={T.green} fillOpacity={0.15} strokeWidth={2}/>
+              <Radar name="Renda" dataKey="Renda" stroke={T.orange} fill={T.orange} fillOpacity={0.15} strokeWidth={2}/>
+              <Legend wrapperStyle={{fontSize:10}}/>
+              <Tooltip/>
+            </RadarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="IDHM e Componentes por TSBio" fonte="Atlas do Desenvolvimento Humano" periodo="2010">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={idhmBar} margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis domain={[0.2,0.85]} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+              <Bar dataKey="IDHM" fill={T.text} radius={[4,4,0,0]}/>
+              <Bar dataKey="IDHM-E" fill={T.blue} radius={[4,4,0,0]}/>
+              <Bar dataKey="IDHM-L" fill={T.green} radius={[4,4,0,0]}/>
+              <Bar dataKey="IDHM-R" fill={T.orange} radius={[4,4,0,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="Evolução do Índice de Gini" fonte="Atlas DH Censo" periodo="1991, 2000, 2010">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={giniData} margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis domain={[0.4,0.7]} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+              <Bar dataKey="1991" fill="#b0c4b0" radius={[4,4,0,0]}/>
+              <Bar dataKey="2000" fill={T.orange} radius={[4,4,0,0]}/>
+              <Bar dataKey="2010" fill={T.red} radius={[4,4,0,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="Rendimento Domiciliar Per Capita — Top 12" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={rendaRank} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" tickFormatter={v=>`R$${v}`} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/>
+              <Bar dataKey="R$ per capita" radius={[0,4,4,0]}>{rendaRank.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="PIB Per Capita Médio por TSBio" fonte="IBGE PIB Municipal" periodo="2021">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={pibPCbar} margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/>
+              <Bar dataKey="PIB per capita" radius={[4,4,0,0]}>{pibPCbar.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+      </div>
+    </div>;
+  };
+
+  // ─── PLACEHOLDER ───
+  const renderPH=(id)=>{
+    const s=SUBTABS.find(x=>x.id===id);
+    return <div style={{textAlign:"center",padding:"50px 20px",color:T.textLight}}>
+      <div style={{fontSize:44,marginBottom:12}}>{s?.i}</div>
+      <h3 style={{fontSize:18,fontWeight:700,color:"#4a5a4a",margin:"0 0 6px"}}>{s?.l}</h3>
+      <p style={{fontSize:13,maxWidth:380,margin:"0 auto",lineHeight:1.5}}>Em construção — próxima iteração. Indicadores mapeados no planejamento.</p>
+    </div>;
+  };
+
+  const renderDimPH=(id)=>{
+    const d=DIMS.find(x=>x.id===id);
+    return <div style={{textAlign:"center",padding:"50px 20px",color:T.textLight}}>
+      <div style={{fontSize:44,marginBottom:12}}>{d?.i}</div>
+      <h3 style={{fontSize:18,fontWeight:700,color:"#4a5a4a",margin:"0 0 6px"}}>Dimensão {d?.l}</h3>
+      <p style={{fontSize:13,maxWidth:380,margin:"0 auto",lineHeight:1.5}}>Em construção — próxima iteração.</p>
+    </div>;
+  };
+
+  return <div style={{minHeight:"100vh",background:`linear-gradient(175deg,#f4f7f4 0%,#eaf0ea 50%,#f0f4f0 100%)`,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+    
+    {/* HEADER */}
+    <header style={{background:`linear-gradient(135deg,${T.greenDark} 0%,${T.green} 40%,#14652f 100%)`,padding:"20px 24px 16px",color:"#fff"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:2.5,opacity:.7,marginBottom:4}}>Projeto Sociobioeconomia na Amazônia</div>
+          <h1 style={{margin:0,fontSize:24,fontWeight:800,fontFamily:"'Playfair Display',serif"}}>Dashboard TSBio</h1>
+          <p style={{margin:"4px 0 0",fontSize:12,opacity:.7}}>Diagnóstico territorial · 6 TSBio · {D.length} municípios · {M.length} registros totais</p>
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {Object.entries(TSBIO_COLORS).map(([n,c])=><span key={n} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:16,background:"rgba(255,255,255,0.1)",fontSize:10,fontWeight:600}}><span style={{width:7,height:7,borderRadius:7,background:c}}/>{n}</span>)}
+        </div>
+      </div>
+    </header>
+
+    {/* FILTERS */}
+    <div style={{background:"#fff",borderBottom:`1px solid ${T.border}`,padding:"10px 24px",display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end"}}>
+      <MultiSel label="Território TSBio" opts={TSBIO_LIST.map(t=>({value:t,label:t}))} sel={selT} onChange={setSelT} cmap={TSBIO_COLORS}/>
+      <MultiSel label="Município" opts={mOpts} sel={selM} onChange={setSelM}/>
+      <div style={{fontSize:11,color:T.textLight,padding:"0 0 5px"}}>{selT.length} territórios · {selM.length>0?`${selM.length} municípios selecionados`:`${fM.length} municípios`}</div>
+    </div>
+
+    {/* DIMENSION TABS */}
+    <div style={{background:"#fff",borderBottom:`2px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+      {DIMS.map(d=><button key={d.id} onClick={()=>{setDim(d.id);if(d.id==="socio")setSub("demo")}} style={{padding:"10px 14px",border:"none",borderBottom:dim===d.id?`3px solid ${T.green}`:"3px solid transparent",background:dim===d.id?"rgba(27,122,61,0.04)":"transparent",color:dim===d.id?T.green:d.on?"#4a5a4a":"#b0b8b0",fontSize:12,fontWeight:dim===d.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,fontFamily:"inherit",transition:"all 0.15s"}}>
+        <span style={{fontSize:14}}>{d.i}</span>{d.l}
+        {!d.on&&<span style={{fontSize:8,background:"#e8ebe8",color:"#8a9a8a",padding:"1px 5px",borderRadius:6,fontWeight:600}}>EM BREVE</span>}
+      </button>)}
+    </div>
+
+    {/* SUB-TABS (only for socio) */}
+    {dim==="socio"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+      {SUBTABS.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
+        <span style={{fontSize:13}}>{s.i}</span>{s.l}
+      </button>)}
+    </div>}
+
+    {/* CONTENT */}
+    <main style={{padding:"18px 24px 40px",maxWidth:1380,margin:"0 auto"}}>
+      {dim==="socio"&&sub==="demo"&&renderDemo()}
+      {dim==="socio"&&sub==="econ"&&renderEcon()}
+      {dim==="socio"&&sub==="edu"&&renderPH("edu")}
+      {dim==="socio"&&sub==="trab"&&renderPH("trab")}
+      {dim==="socio"&&sub==="povos"&&renderPH("povos")}
+      {dim==="socio"&&sub==="dom"&&renderPH("dom")}
+      {dim!=="socio"&&renderDimPH(dim)}
+    </main>
+
+    {/* FOOTER */}
+    <footer style={{background:T.greenDark,color:"rgba(255,255,255,0.55)",padding:"14px 24px",fontSize:10,display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+      <div>FAS — Fundação Amazônia Sustentável · MMA-DPEB · Oportunidade Nº 201/2025</div>
+      <div>Dados de exemplo · v0.2 · Socioeconômica: Demográfico + Economia</div>
+    </footer>
+  </div>;
+}

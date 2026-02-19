@@ -1,0 +1,443 @@
+{
+  "municipios": [
+    {
+      "cod_ibge": "1500602",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1500131",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1501725",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1504752",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1506138",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1507805",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1508159",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1508084",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1506187",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1506351",
+      "tsbio": "Altamira",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1302603",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1300706",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1301209",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1300201",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1301803",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1302108",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1301001",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1301308",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1302504",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1301704",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1302405",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1301100",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1300680",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1302009",
+      "tsbio": "Juruá-Tefé",
+      "uf": "AM"
+    },
+    {
+      "cod_ibge": "1600303",
+      "tsbio": "Macapá",
+      "uf": "AP"
+    },
+    {
+      "cod_ibge": "1600600",
+      "tsbio": "Macapá",
+      "uf": "AP"
+    },
+    {
+      "cod_ibge": "1600402",
+      "tsbio": "Macapá",
+      "uf": "AP"
+    },
+    {
+      "cod_ibge": "1600105",
+      "tsbio": "Macapá",
+      "uf": "AP"
+    },
+    {
+      "cod_ibge": "1600212",
+      "tsbio": "Macapá",
+      "uf": "AP"
+    },
+    {
+      "cod_ibge": "1506583",
+      "tsbio": "Portel",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1502152",
+      "tsbio": "Portel",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1503754",
+      "tsbio": "Portel",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1504455",
+      "tsbio": "Portel",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1500909",
+      "tsbio": "Portel",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1502301",
+      "tsbio": "Portel",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1502400",
+      "tsbio": "Portel",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1200401",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200104",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200203",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200302",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200906",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200344",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200138",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200179",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200252",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200328",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200385",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200427",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200500",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1200609",
+      "tsbio": "Rio Branco-Brasiléia",
+      "uf": "AC"
+    },
+    {
+      "cod_ibge": "1502608",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1507300",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1508001",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1500800",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1501006",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1507904",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1507102",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1504604",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1506005",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1506302",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1507979",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1504802",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1507151",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1501402",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    },
+    {
+      "cod_ibge": "1507953",
+      "tsbio": "Salgado-Bragantino",
+      "uf": "PA"
+    }
+  ],
+  "tsbios": {
+    "Altamira": {
+      "uf": "PA",
+      "n_municipios": 10,
+      "cor": "#1B7A3D",
+      "codigos": [
+        "1500602",
+        "1500131",
+        "1501725",
+        "1504752",
+        "1506138",
+        "1507805",
+        "1508159",
+        "1508084",
+        "1506187",
+        "1506351"
+      ]
+    },
+    "Juruá-Tefé": {
+      "uf": "AM",
+      "n_municipios": 14,
+      "cor": "#2E86AB",
+      "codigos": [
+        "1302603",
+        "1300706",
+        "1301209",
+        "1300201",
+        "1301803",
+        "1302108",
+        "1301001",
+        "1301308",
+        "1302504",
+        "1301704",
+        "1302405",
+        "1301100",
+        "1300680",
+        "1302009"
+      ]
+    },
+    "Macapá": {
+      "uf": "AP",
+      "n_municipios": 5,
+      "cor": "#E8871E",
+      "codigos": [
+        "1600303",
+        "1600600",
+        "1600402",
+        "1600105",
+        "1600212"
+      ]
+    },
+    "Portel": {
+      "uf": "PA",
+      "n_municipios": 7,
+      "cor": "#7B2D8E",
+      "codigos": [
+        "1506583",
+        "1502152",
+        "1503754",
+        "1504455",
+        "1500909",
+        "1502301",
+        "1502400"
+      ]
+    },
+    "Rio Branco-Brasiléia": {
+      "uf": "AC",
+      "n_municipios": 14,
+      "cor": "#C4342D",
+      "codigos": [
+        "1200401",
+        "1200104",
+        "1200203",
+        "1200302",
+        "1200906",
+        "1200344",
+        "1200138",
+        "1200179",
+        "1200252",
+        "1200328",
+        "1200385",
+        "1200427",
+        "1200500",
+        "1200609"
+      ]
+    },
+    "Salgado-Bragantino": {
+      "uf": "PA",
+      "n_municipios": 15,
+      "cor": "#D4A843",
+      "codigos": [
+        "1502608",
+        "1507300",
+        "1508001",
+        "1500800",
+        "1501006",
+        "1507904",
+        "1507102",
+        "1504604",
+        "1506005",
+        "1506302",
+        "1507979",
+        "1504802",
+        "1507151",
+        "1501402",
+        "1507953"
+      ]
+    }
+  },
+  "meta": {
+    "gerado_em": "2026-02-18 17:27",
+    "total_municipios": 65,
+    "total_tsbios": 6
+  }
+}
