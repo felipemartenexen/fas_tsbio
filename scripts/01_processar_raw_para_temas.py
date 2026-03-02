@@ -12,6 +12,8 @@ Regras:
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -28,6 +30,21 @@ from pipeline_utils import (
 # ---- Colunas a remover nos arquivos por TEMA (saída) ----
 # Como o nome do arquivo já carrega Tema e Fonte, podemos remover metadados redundantes.
 DROP_OUTPUT_COLS = ["indicador_id", "categoria", "fonte", "tema"]
+CSV_EXPORT_ENCODING = "utf-8-sig"
+
+
+def _is_extra_municipio_nome_col(col: str) -> bool:
+    c = (col or "").strip().lower()
+    if not c:
+        return False
+    if c in {"municipio_nome", "cod_municipio", "sigla_uf"}:
+        return False
+    return ("municip" in c and "nome" in c) or c in {
+        "munic_pio",
+        "municipio",
+        "nome_municipio",
+        "nome_do_municipio",
+    }
 
 # ---- Heurística para localizar a coluna de município ----
 
@@ -40,7 +57,7 @@ DROP_OUTPUT_COLS = ["indicador_id", "categoria", "fonte", "tema"]
 #   TEMAS_ALVO = ["Área média ha", "IDHM"]
 #
 # Observação: a comparação é "flexível" (case-insensitive e ignora acentos/pontuação).
-CATEGORIAS_ALVO = []  # ex.: ["Vulnerabilidade"]
+CATEGORIAS_ALVO = ["Índices"]  # ex.: ["Vulnerabilidade"]
 TEMAS_ALVO = []       # ex.: ["Área média ha"]
 
 def _norm(s: str) -> str:
@@ -70,6 +87,7 @@ MUN_CANDIDATES = [
     "geocod_ibge",
     "geocod_ibge_7",
     "id_municipio",
+    "codmun",
 ]
 
 def find_mun_col(cols: List[str]) -> str | None:
@@ -84,8 +102,42 @@ def find_mun_col(cols: List[str]) -> str | None:
             return c
     return None
 
+
+def choose_best_mun_col_idx(df: pd.DataFrame, expected_muns: set[str]) -> int | None:
+    candidates: List[int] = []
+    for idx, col in enumerate(df.columns):
+        cl = str(col).lower().strip()
+        if cl in MUN_CANDIDATES:
+            candidates.append(idx)
+            continue
+        if "municip" in cl and ("cod" in cl or "geocod" in cl):
+            candidates.append(idx)
+
+    if not candidates:
+        return None
+
+    best_idx = None
+    best_score = (-1, -1)
+    for idx in candidates:
+        series_codes = df.iloc[:, idx]
+        norm_codes = series_codes.apply(zfill_mun)
+        valid = int((norm_codes.str.len() == 7).sum())
+        in_scope = int(norm_codes.isin(expected_muns).sum())
+        score = (in_scope, valid)
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+
+    return best_idx
+
 def processar() -> pd.DataFrame:
     cfg.ensure_dirs()
+
+    if cfg.OUT_ENCODING != CSV_EXPORT_ENCODING:
+        print(
+            f"ℹ️ Forçando encoding CSV para {CSV_EXPORT_ENCODING} "
+            f"(config atual: {cfg.OUT_ENCODING})"
+        )
 
     assert cfg.ROOT_RAW.exists(), f"ROOT_RAW não encontrado: {cfg.ROOT_RAW}"
     assert cfg.DICT_PATH.exists(), f"DICT_PATH não encontrado: {cfg.DICT_PATH}"
@@ -94,6 +146,10 @@ def processar() -> pd.DataFrame:
 
     expected_muns = set()
     mun_to_tsbio = {}
+    mun_to_nome_uf = {
+        zfill_mun(cod): (meta.get("municipio_nome", ""), meta.get("sigla_uf", ""))
+        for cod, meta in cfg.MUNICIPIOS_TSBIO.items()
+    }
     for t in cfg.TSBIO:
         tid = int(t["territorio_id"])
         tname = str(t["territorio_nome"])
@@ -139,13 +195,22 @@ def processar() -> pd.DataFrame:
         col_map = {c: normalize_column_name(c, syn_map) for c in df.columns}
         df = df.rename(columns=col_map)
 
-        mun_col = find_mun_col(list(df.columns))
-        if not mun_col:
+        mun_col_idx = choose_best_mun_col_idx(df, expected_muns)
+        if mun_col_idx is None:
+            mun_col = find_mun_col(list(df.columns))
+            if not mun_col:
+                missing_mun_col.append(str(p))
+                continue
+            col_values = df[mun_col]
+            if isinstance(col_values, pd.DataFrame):
+                col_values = col_values.iloc[:, 0]
+            df["cod_municipio"] = col_values
+        else:
+            df["cod_municipio"] = df.iloc[:, mun_col_idx]
+
+        if "cod_municipio" not in df.columns:
             missing_mun_col.append(str(p))
             continue
-
-        if mun_col != "cod_municipio":
-            df = df.rename(columns={mun_col: "cod_municipio"})
 
         df["cod_municipio"] = df["cod_municipio"].apply(zfill_mun)
         df = df[df["cod_municipio"].astype(str).str.len() > 0].copy()
@@ -155,7 +220,32 @@ def processar() -> pd.DataFrame:
         if df.empty:
             continue
 
-        # Metadados mínimos (úteis para rastreabilidade)
+        if "municipio_nome" not in df.columns:
+            df["municipio_nome"] = ""
+        if "sigla_uf" not in df.columns:
+            df["sigla_uf"] = ""
+
+        nome_existente = df["municipio_nome"].fillna("").astype(str).str.strip()
+        uf_existente = df["sigla_uf"].fillna("").astype(str).str.strip()
+
+        nome_map = df["cod_municipio"].map(lambda cod: mun_to_nome_uf.get(cod, ("", ""))[0]).fillna("")
+        uf_map = df["cod_municipio"].map(lambda cod: mun_to_nome_uf.get(cod, ("", ""))[1]).fillna("")
+
+        nome_final = nome_map.where(nome_map.str.len() > 0, nome_existente)
+        uf_final = uf_map.where(uf_map.str.len() > 0, uf_existente)
+
+        df["sigla_uf"] = uf_final
+        df["municipio_nome"] = nome_final
+
+        mask_nome_uf = (df["municipio_nome"].str.len() > 0) & (df["sigla_uf"].str.len() > 0)
+        df.loc[mask_nome_uf, "municipio_nome"] = (
+            df.loc[mask_nome_uf, "municipio_nome"]
+            + " ("
+            + df.loc[mask_nome_uf, "sigla_uf"]
+            + ")"
+        )
+
+        # Metadados internos (não exportados no CSV final)
         df["indicador_id"] = indicador_id
         df["categoria"] = categoria
         df["fonte"] = fonte
@@ -196,7 +286,7 @@ def processar() -> pd.DataFrame:
         first_cols = [
             "indicador_id","categoria","fonte","tema",
             "territorio_id","territorio_nome",
-            "cod_municipio",
+            "cod_municipio","municipio_nome","sigla_uf",
             "ano","mes",
             "arquivo_origem","recorte_origem"
         ]
@@ -207,8 +297,14 @@ def processar() -> pd.DataFrame:
         if DROP_OUTPUT_COLS:
             out_df = out_df.drop(columns=[c for c in DROP_OUTPUT_COLS if c in out_df.columns], errors="ignore")
 
+        # Não exportar colunas de rastreabilidade nem colunas duplicadas de nome de município
+        non_export_cols = ["arquivo_origem", "recorte_origem"]
+        non_export_cols.extend([c for c in out_df.columns if _is_extra_municipio_nome_col(c)])
+        if non_export_cols:
+            out_df = out_df.drop(columns=[c for c in non_export_cols if c in out_df.columns], errors="ignore")
+
         if cfg.EXPORT_PROCESSADO_CSV:
-            out_df.to_csv(out_csv_path, index=False, sep=cfg.OUT_SEP, encoding=cfg.OUT_ENCODING)
+            out_df.to_csv(out_csv_path, index=False, sep=cfg.OUT_SEP, encoding=CSV_EXPORT_ENCODING)
         if cfg.EXPORT_PROCESSADO_XLSX:
             try:
                 out_df.to_excel(out_xlsx_path, index=False)
@@ -230,13 +326,21 @@ def processar() -> pd.DataFrame:
         })
 
     rep_df = pd.DataFrame(report_rows).sort_values(["categoria", "fonte", "tema"])
-    rep_df.to_csv(cfg.RELATORIO_VALIDACAO, index=False, encoding=cfg.OUT_ENCODING)
+    rep_df.to_csv(cfg.RELATORIO_VALIDACAO, index=False, encoding=CSV_EXPORT_ENCODING)
 
     if missing_mun_col:
-        pd.DataFrame({"arquivo": missing_mun_col}).to_csv(cfg.RELATORIO_SEM_MUN, index=False, encoding=cfg.OUT_ENCODING)
+        pd.DataFrame({"arquivo": missing_mun_col}).to_csv(
+            cfg.RELATORIO_SEM_MUN,
+            index=False,
+            encoding=CSV_EXPORT_ENCODING,
+        )
 
     if errors:
-        pd.DataFrame(errors, columns=["arquivo", "erro"]).to_csv(cfg.RELATORIO_ERROS, index=False, encoding=cfg.OUT_ENCODING)
+        pd.DataFrame(errors, columns=["arquivo", "erro"]).to_csv(
+            cfg.RELATORIO_ERROS,
+            index=False,
+            encoding=CSV_EXPORT_ENCODING,
+        )
 
     print(f"ℹ️ Arquivos ignorados pelos filtros: {skipped_by_filter}")
     print("✅ Processamento concluído.")

@@ -17,6 +17,15 @@ const TSBIO_COLORS = {
 };
 const TSBIO_LIST = Object.keys(TSBIO_COLORS);
 
+// Favela population by municipality name (Censo 2022)
+const FAVELA_POP = {
+  "Altamira":5097,"Bagre":1755,"Bragança":7976,"Brasiléia":3854,
+  "Capanema":9317,"Carauari":3914,"Cutias":777,"Eirunepé":6279,
+  "Envira":1842,"Epitaciolândia":2069,"Guajará":373,"Ipixuna":4447,
+  "Macapá":127650,"Melgaço":529,"Rio Branco":48126,"Santana":31899,
+  "Tefé":19237,"Vigia":7496,
+};
+
 // ═══════════════════════════════════════════════════════
 // DATA HELPERS
 // ═══════════════════════════════════════════════════════
@@ -68,6 +77,17 @@ function buildMunicipios(munJson, socioJson) {
   const domPermD   = get("domicilios_domicilios_particulares_permanentes");
   const domLavD    = get("domicilios_presenca_de_maquina_de_lavar_roupas");
   const domQtdD    = get("domicilios_quantidade_de_domicilios");
+  const razSexoD   = get("populacao_razao_de_sexo_e_indice_de_envelhecimento");
+  const taxaCrescD = get("populacao_taxa_de_crescimento_anual");
+  const pop25D     = get("populacao_estimativa_populacao_2025");
+  const indPirD    = get("indigenas_piramide_etaria_da_populacao_indigena");
+
+  // cod_ibge → pop2025 lookup (keys in pop25D include state suffix)
+  const codToPop25 = {};
+  Object.entries(pop25D).forEach(([,v])=>{
+    const c=String(Math.round(v.cod_municipio||0)).padStart(7,"0");
+    codToPop25[c]=v.populacao_residente_estimada_2025||0;
+  });
 
   // cod_ibge → uf lookup from municipios.json
   const codToUf = {};
@@ -79,13 +99,20 @@ function buildMunicipios(munJson, socioJson) {
     const uf    = codToUf[cod] || "?";
 
     // ── Population (Censo series) ──
+    // Note: ano_da_pesquisa may have more entries than populacao when early
+    // census years have no data for the municipality. Align from the end.
     const pr    = popResD[munName] || {};
     const pAnos = pr.ano_da_pesquisa || [];
     const pPops = pr.populacao || [];
-    const i22   = pAnos.indexOf(2022);
-    const i10   = pAnos.indexOf(2010);
-    const p22   = i22 >= 0 ? (pPops[i22] || 0) : 0;
-    const p10   = i10 >= 0 ? (pPops[i10] || 0) : 0;
+    const pLen  = Math.min(pAnos.length, pPops.length);
+    const aAnos = pAnos.slice(-pLen);
+    const aPops = pPops.slice(-pLen);
+    const i22   = aAnos.indexOf(2022);
+    const i10   = aAnos.indexOf(2010);
+    const i00   = aAnos.indexOf(2000);
+    const p22   = i22 >= 0 ? (aPops[i22] || 0) : 0;
+    const p10   = i10 >= 0 ? (aPops[i10] || 0) : 0;
+    const p00   = i00 >= 0 ? (aPops[i00] || 0) : 0;
 
     // ── Urban / Rural ──
     const sd    = situD[munName] || {};
@@ -197,6 +224,9 @@ function buildMunicipios(munJson, socioJson) {
     const iI22      = ivAnos.indexOf(2022);
     const ind2010   = iI10 >= 0 ? (ivPop[iI10] || 0) : (ivPop[0] || 0);
     const ind2022   = iI22 >= 0 ? (ivPop[iI22] || 0) : (ivPop[1] || 0);
+    const pp        = indPirD[munName] || {};
+    const indPirM   = pp.populacao_masculina_pessoas || [];
+    const indPirF   = pp.populacao_feminina_pessoas  || [];
 
     // ── Domicílios ──
     const dq       = domQtdD[munName] || {};
@@ -217,11 +247,17 @@ function buildMunicipios(munJson, socioJson) {
       n:       munName,
       u:       uf,
       t:       tsbio,
-      p22,     p10,
+      p22,     p10,    p00,
+      p25:     codToPop25[cod]||0,
+      razaoSexo: pn((razSexoD[munName]||{}).homens_para_cada_100_mulheres),
+      idxEnvelh: pn((razSexoD[munName]||{}).pessoas_com_60_anos_para_cada_100_com_ate_14_anos),
+      taxaCresc: pn((taxaCrescD[munName]||{}).taxa),
+      pFavPop: FAVELA_POP[munName]||0,
       dens:    pn(densRow.habitantes_por_km2),
       urb,     rur,
       idMed:   pn((idMedD[munName] || {}).idade_mediana),
       masc,    fem,
+      sxH: sxPop[0]||0, sxF: sxPop[1]||0,
       br:      pct(0), pr: pct(1), am: pct(2), pa: pct(3), in: pct(4),
       pUC:     qi.pessoas_indigenas || 0,
       pFav:    qi.pessoas_quilombolas || 0,
@@ -253,7 +289,7 @@ function buildMunicipios(munJson, socioJson) {
       lixo:    pn((lixoD[munName]    || {}).do_total_geral),
       internet:pn((internetD[munName]|| {}).do_total_geral),
       pessoasInd, etniasInd, linguasInd,
-      indUrb, indRur, ind2010, ind2022,
+      indUrb, indRur, ind2010, ind2022, indPirM, indPirF,
       domTotal,
       domCasaPct:      pctDT("casa"),
       domVilaPct:      pctDT("casa_de_vila_ou_condominio"),
@@ -378,13 +414,13 @@ const LULC_N1_COLORS = {
 // ═══════════════════════════════════════════════════════
 const FB = ({f}) => <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:16,background:"rgba(27,122,61,0.08)",color:T.green,fontSize:10,fontWeight:600,border:"1px solid rgba(27,122,61,0.15)"}}>📊 {f}</span>;
 
-const CC = ({title,fonte,periodo,children,h=260}) => (
+const CC = ({title,fonte,periodo,children}) => (
   <div style={{background:"#fff",borderRadius:12,padding:"16px 18px 12px",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",border:`1px solid ${T.border}`,display:"flex",flexDirection:"column",gap:8}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
       <h3 style={{margin:0,fontSize:13.5,fontWeight:700,color:T.text,lineHeight:1.3}}>{title}</h3>
       <FB f={fonte}/>
     </div>
-    <div style={{height:h,minHeight:0}}>{children}</div>
+    <div style={{flex:1,display:"flex",flexDirection:"column"}}>{children}</div>
     {periodo&&<div style={{fontSize:10,color:T.textLight,borderTop:"1px solid #f0f2f0",paddingTop:6}}>Período: {periodo}</div>}
   </div>
 );
@@ -414,7 +450,7 @@ const MultiSel = ({label,opts,sel,onChange,cmap})=>{
   useEffect(()=>{const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false)};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h)},[]);
   const all=sel.length===opts.length;
   const tog=v=>onChange(sel.includes(v)?sel.filter(x=>x!==v):[...sel,v]);
-  const txt=all?`Todos (${opts.length})`:sel.length===0?"Nenhum":sel.length<=2?sel.join(", "):`${sel.length} selecionados`;
+  const txt=all?`Todos (${opts.length})`:sel.length===0?"Nenhum":sel.length<=2?opts.filter(o=>sel.includes(o.value)).map(o=>o.label.replace(/ \([A-Z]{2}\)$/,"")).join(", "):`${sel.length} selecionados`;
   return <div ref={ref} style={{position:"relative",minWidth:190}}>
     <label style={{fontSize:10,fontWeight:700,color:"#5a6a5a",textTransform:"uppercase",letterSpacing:1,marginBottom:3,display:"block"}}>{label}</label>
     <button onClick={()=>setOpen(!open)} style={{width:"100%",padding:"7px 12px",borderRadius:8,border:"1.5px solid #c8d0c8",background:"#fff",cursor:"pointer",textAlign:"left",fontSize:12,fontWeight:600,color:T.text,display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"inherit"}}>
@@ -451,24 +487,37 @@ export default function Dashboard(){
   const[infraData,setInfraData]=useState(null);
   const[polData,setPolData]=useState(null);
   const[vulData,setVulData]=useState(null);
+  const[pirData,setPirData]=useState({});
+  const[pibDetail,setPibDetail]=useState({});
+  const[ipsData,setIpsData]=useState({});
+  const[munPage,setMunPage]=useState(0);
+  const[densPage,setDensPage]=useState(0);
+  const[pibMunPage,setPibMunPage]=useState(0);
+  const[pibTblPage,setPibTblPage]=useState(0);
 
   useEffect(()=>{
     Promise.all([
-      fetch("/data/municipios.json").then(r=>r.json()),
-      fetch("/data/dim_socioeconomica.json").then(r=>r.json()),
-      fetch("/data/dim_ambiental_v2.json").then(r=>r.json()),
-      fetch("/data/dim_produtiva_v2.json").then(r=>r.json()),
-      fetch("/data/dim_infraestrutura_v2.json").then(r=>r.json()),
-      fetch("/data/dim_politicas_v2.json").then(r=>r.json()),
-      fetch("/data/dim_vulnerabilidades_v2.json").then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/municipios.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/dim_socioeconomica.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/dim_ambiental_v2.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/dim_produtiva_v2.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/dim_infraestrutura_v2.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/dim_politicas_v2.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/dim_vulnerabilidades_v2.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/piramide_pop.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/pib_detail.json`).then(r=>r.json()),
+      fetch(`${import.meta.env.BASE_URL}data/ips_municipal.json`).then(r=>r.json()),
     ])
-    .then(([munJson,socioJson,ambJson,prodJson,infraJson,polJson,vulJson])=>{
+    .then(([munJson,socioJson,ambJson,prodJson,infraJson,polJson,vulJson,pirJson,pibDetailJson,ipsJson])=>{
       setMunData(buildMunicipios(munJson,socioJson));
       setAmbData(ambJson);
       setProdData(prodJson);
       setInfraData(infraJson);
       setPolData(polJson);
       setVulData(vulJson);
+      setPirData(pirJson);
+      setPibDetail(pibDetailJson);
+      setIpsData(ipsJson);
       setLoading(false);
     })
     .catch(err=>{
@@ -478,9 +527,10 @@ export default function Dashboard(){
   },[]);
 
   const fM=useMemo(()=>munData.filter(m=>selT.includes(m.t)),[selT,munData]);
-  const mOpts=useMemo(()=>fM.map(m=>({value:m.c,label:`${m.n} (${m.u})`})),[fM]);
-  useEffect(()=>setSelM([]),[selT]);
+  const mOpts=useMemo(()=>fM.map(m=>({value:m.c,label:m.n})),[fM]);
+  useEffect(()=>{setSelM(munData.filter(m=>selT.includes(m.t)).map(m=>m.c));},[selT,munData]);
   const D=useMemo(()=>selM.length>0?fM.filter(m=>selM.includes(m.c)):fM,[fM,selM]);
+  useEffect(()=>{setMunPage(0);setDensPage(0);setPibMunPage(0);setPibTblPage(0);},[D]);
 
   // Aggregate by TSBio
   const byT=useMemo(()=>{
@@ -490,7 +540,9 @@ export default function Dashboard(){
       const sum=(k)=>ms.reduce((s,m)=>s+(m[k]||0),0);
       const avg=(k)=>n>0?+(sum(k)/n).toFixed(2):0;
       return{t,n,
-        pop:sum("p22"),pop10:sum("p10"),dens:avg("dens"),urb:avg("urb"),rur:avg("rur"),
+        pop:sum("p22"),pop10:sum("p10"),pop00:sum("p00"),pop25:sum("p25"),
+        razaoSexo:avg("razaoSexo"),idxEnvelh:avg("idxEnvelh"),taxaCresc:avg("taxaCresc"),pFavPop:sum("pFavPop"),
+        dens:avg("dens"),urb:avg("urb"),rur:avg("rur"),
         idhm:avg("idhm"),idhm_e:avg("idhm_e"),idhm_l:avg("idhm_l"),idhm_r:avg("idhm_r"),
         gini10:avg("gini10"),rendaPC:Math.round(avg("rendaPC")),alfab:avg("alfab"),anoEst:avg("anoEst"),
         pibAgro:sum("pibAgro"),pibInd:sum("pibInd"),pibServ:sum("pibServ"),pibAdm:sum("pibAdm"),
@@ -517,6 +569,7 @@ export default function Dashboard(){
   },[D]);
 
   const totPop=D.reduce((s,m)=>s+(m.p22||0),0);
+  const totPop25=D.reduce((s,m)=>s+(m.p25||0),0);
   const avgIDHM=D.length?+(D.reduce((s,m)=>s+(m.idhm||0),0)/D.length).toFixed(3):0;
   const avgGini=D.length?+(D.reduce((s,m)=>s+(m.gini10||0),0)/D.length).toFixed(2):0;
   const avgRenda=D.length?Math.round(D.reduce((s,m)=>s+(m.rendaPC||0),0)/D.length):0;
@@ -525,41 +578,155 @@ export default function Dashboard(){
 
   // ─── PERFIL DEMOGRÁFICO ───
   const renderDemo=()=>{
-    const popBar=byT.map(t=>({name:sh(t.t),full:t.t,Pop2022:t.pop,Pop2010:t.pop10})).sort((a,b)=>b.Pop2022-a.Pop2022);
-    const cresc=byT.map(t=>({name:sh(t.t),full:t.t,"Cresc. (%)":t.pop10>0?+((t.pop-t.pop10)/t.pop10*100).toFixed(1):0}));
+    // Historical population trend per TSBio (2000, 2010, 2022, 2025*)
+    const histPop=[{year:"2000"},{year:"2010"},{year:"2022"},{year:"2025*"}];
+    byT.forEach(t=>{
+      histPop[0][sh(t.t)]=t.pop00;
+      histPop[1][sh(t.t)]=t.pop10;
+      histPop[2][sh(t.t)]=t.pop;
+      histPop[3][sh(t.t)]=t.pop25;
+    });
+
+    // Taxa de crescimento anual média por TSBio (IBGE Censo 2022)
+    const taxaBar=byT.map(t=>({name:sh(t.t),full:t.t,"Taxa (% a.a.)":+t.taxaCresc.toFixed(2)}));
+
+    // Sex distribution per TSBio
+    const sexDist=byT.map(t=>{
+      const ms=D.filter(m=>m.t===t.t);const n=ms.length||1;
+      return{name:sh(t.t),full:t.t,
+        "Homens":+(ms.reduce((s,m)=>s+(m.masc||0),0)/n).toFixed(1),
+        "Mulheres":+(ms.reduce((s,m)=>s+(m.fem||0),0)/n).toFixed(1)};
+    });
+
+    // Favela population aggregated by TSBio
+    const favTsbio=byT.filter(t=>t.pFavPop>0)
+      .sort((a,b)=>b.pFavPop-a.pFavPop)
+      .map(t=>({name:sh(t.t),full:t.t,"Pop. Favelas":t.pFavPop,fill:TSBIO_COLORS[t.t]}));
+
     const urbRur=byT.map(t=>({name:sh(t.t),full:t.t,"Urbana":t.urb,"Rural":t.rur}));
-    const top12=[...D].sort((a,b)=>(b.p22||0)-(a.p22||0)).slice(0,12).map(m=>({name:sh(m.n),full:m.n,Pop:m.p22,fill:TSBIO_COLORS[m.t]}));
     const raca=byT.map(t=>{const ms=D.filter(m=>m.t===t.t);const n=ms.length||1;return{name:sh(t.t),Branca:+(ms.reduce((s,m)=>s+(m.br||0),0)/n).toFixed(1),Preta:+(ms.reduce((s,m)=>s+(m.pr||0),0)/n).toFixed(1),Parda:+(ms.reduce((s,m)=>s+(m.pa||0),0)/n).toFixed(1),Indígena:+(ms.reduce((s,m)=>s+(m.in||0),0)/n).toFixed(1)}});
-    const densRank=[...D].sort((a,b)=>(b.dens||0)-(a.dens||0)).slice(0,10).map(m=>({name:sh(m.n),full:m.n,"hab/km²":m.dens,fill:TSBIO_COLORS[m.t]}));
-    const popTotal10=D.reduce((s,m)=>s+(m.p10||0),0);const crescTotal=popTotal10>0?((totPop-popTotal10)/popTotal10*100).toFixed(1):"—";
+
+    // Age pyramid — general population (Censo 2022)
+    const AGE_GROUPS=["100+","95-99","90-94","85-89","80-84","75-79","70-74","65-69","60-64","55-59","50-54","45-49","40-44","35-39","30-34","25-29","20-24","15-19","10-14","5-9","0-4"];
+    const pirM=Array(21).fill(0);const pirF=Array(21).fill(0);
+    D.forEach(m=>{
+      const pd=pirData[m.c]||{};
+      (pd.masc||[]).forEach((v,i)=>{pirM[i]+=(v||0);});
+      (pd.fem||[]).forEach((v,i)=>{pirF[i]+=(v||0);});
+    });
+    const pyrData=AGE_GROUPS.map((g,i)=>({age:g,Masculino:pirM[i]||0,Feminino:-(pirF[i]||0)})).reverse();
+
+    // Pie pop 2025 por TSBio
+    const pop25Pie=byT.map(t=>({name:sh(t.t),full:t.t,value:t.pop25,fill:TSBIO_COLORS[t.t]||T.green})).filter(r=>r.value>0);
+
+    // Municipalities by population — paginated (12 per page)
+    const MUN_PS=12;
+    const munSorted=[...D].sort((a,b)=>(b.p22||0)-(a.p22||0));
+    const munTotPg=Math.ceil(munSorted.length/MUN_PS)||1;
+    const safeMP=Math.min(munPage,munTotPg-1);
+    const munPageData=munSorted.slice(safeMP*MUN_PS,(safeMP+1)*MUN_PS).map(m=>({name:sh(m.n),full:m.n,Pop:m.p22,fill:TSBIO_COLORS[m.t]}));
+
+    // Density — paginated (12 per page)
+    const DENS_PS=12;
+    const densSorted=[...D].sort((a,b)=>(b.dens||0)-(a.dens||0));
+    const densTotPg=Math.ceil(densSorted.length/DENS_PS)||1;
+    const safeDP=Math.min(densPage,densTotPg-1);
+    const densPageData=densSorted.slice(safeDP*DENS_PS,(safeDP+1)*DENS_PS).map(m=>({name:sh(m.n),full:m.n,"hab/km²":m.dens,fill:TSBIO_COLORS[m.t]}));
+
+    const popTotal10=D.reduce((s,m)=>s+(m.p10||0),0);
+    const crescTotal=popTotal10>0?((totPop-popTotal10)/popTotal10*100).toFixed(1):"—";
+    const pgBtn=(act,disabled,lbl)=><button onClick={act} disabled={disabled} style={{padding:"2px 10px",borderRadius:4,border:`1px solid ${T.border}`,background:disabled?"#f0f0f0":"#fff",cursor:disabled?"default":"pointer",fontSize:12,color:disabled?T.textLight:T.text}}>{lbl}</button>;
 
     return <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-        <KPI l="População Total (2022)" v={totPop.toLocaleString("pt-BR")} i="👥" c={T.green}/>
+        <KPI l="Pop. Estimada 2025" v={totPop25.toLocaleString("pt-BR")} i="👥" c={T.green}/>
         <KPI l="Crescimento 2010→2022" v={crescTotal!=="—"?`+${crescTotal}`:crescTotal} u="%" i="📈" c={T.blue}/>
         <KPI l="Taxa Alfabetização" v={avgAlfab} u="%" i="📚" c={T.purple}/>
         <KPI l="Nº Municípios" v={D.length} i="🏛️" c={T.orange}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:14}}>
-        <CC title="População por TSBio — 2010 vs 2022" fonte="IBGE Censo 2022" periodo="2010, 2022">
+        <CC title="Evolução Populacional por TSBio" fonte="IBGE Censo / Estimativa IBGE" periodo="2000 · 2010 · 2022 · 2025*">
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={popBar} margin={{left:8,right:16,top:8,bottom:8}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:v} tick={{fontSize:10}}/>
+            <LineChart data={histPop} margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="year" tick={{fontSize:10}}/><YAxis tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:v} tick={{fontSize:10}}/>
               <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
-              <Bar dataKey="Pop2010" fill="#b0c4b0" radius={[4,4,0,0]} name="2010"/>
-              <Bar dataKey="Pop2022" radius={[4,4,0,0]} name="2022">{popBar.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
-            </BarChart>
+              {byT.map(t=><Line key={t.t} type="monotone" dataKey={sh(t.t)} stroke={TSBIO_COLORS[t.t]||T.green} strokeWidth={2} dot={{r:3}}/>)}
+            </LineChart>
           </ResponsiveContainer>
         </CC>
-        <CC title="Crescimento Intercensitário (%)" fonte="IBGE Censo 2022" periodo="2010→2022">
+        <CC title="Taxa de Crescimento Populacional (% a.a.)" fonte="IBGE Censo 2022" periodo="2010→2022">
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={cresc} margin={{left:8,right:16,top:8,bottom:8}}>
+            <BarChart data={taxaBar} margin={{left:8,right:16,top:8,bottom:8}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}} unit="%"/>
               <Tooltip content={<CTip/>}/>
-              <Bar dataKey="Cresc. (%)" radius={[4,4,0,0]}>{cresc.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
+              <Bar dataKey="Taxa (% a.a.)" radius={[4,4,0,0]}>{taxaBar.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
             </BarChart>
           </ResponsiveContainer>
         </CC>
+        <CC title="Distribuição por Sexo (% médio por TSBio)" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={sexDist} layout="vertical" margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" domain={[0,100]} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={95} tick={{fontSize:10}}/>
+              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+              <Bar dataKey="Homens" stackId="a" fill={T.blue} radius={[0,0,0,0]}/>
+              <Bar dataKey="Mulheres" stackId="a" fill="#e07b9a" radius={[0,4,4,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="Pirâmide Etária" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={380}>
+            <BarChart data={pyrData} layout="vertical" stackOffset="sign" margin={{left:8,right:16,top:8,bottom:8}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+              <XAxis type="number" tickFormatter={v=>Math.abs(v).toLocaleString("pt-BR")} tick={{fontSize:8}}/>
+              <YAxis type="category" dataKey="age" width={45} tick={{fontSize:8}}/>
+              <Tooltip content={({active,payload,label})=>{
+                if(!active||!payload?.length)return null;
+                return <div style={{background:T.greenDark,color:"#fff",padding:"8px 12px",borderRadius:8,fontSize:11,boxShadow:"0 4px 12px rgba(0,0,0,0.2)",maxWidth:280}}>
+                  <div style={{fontWeight:700,marginBottom:3}}>{label}</div>
+                  {payload.map((p,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:5,marginTop:1}}>
+                    <span style={{width:7,height:7,borderRadius:7,background:p.color,flexShrink:0}}/><span>{p.name}: <b>{Math.abs(p.value).toLocaleString("pt-BR")}</b></span>
+                  </div>)}
+                </div>;
+              }}/>
+              <Legend wrapperStyle={{fontSize:10}}/>
+              <Bar dataKey="Feminino" stackId="pyr" fill="#e07b9a"/>
+              <Bar dataKey="Masculino" stackId="pyr" fill={T.blue}/>
+            </BarChart>
+          </ResponsiveContainer>
+        </CC>
+        <CC title="População Residente 2025 por TSBio" fonte="IBGE Estimativa 2025" periodo="2025">
+          <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+          <ResponsiveContainer width="100%" height={310}>
+            <PieChart margin={{top:20,right:20,bottom:10,left:20}}>
+              <Pie data={pop25Pie} dataKey="value" nameKey="name" cx="50%" cy="48%" outerRadius={85}
+                label={({percent})=>`${(percent*100).toFixed(1)}%`} labelLine={false}
+                labelStyle={{fontSize:10,fontWeight:600,fill:"#333"}}>
+                {pop25Pie.map((e,i)=><Cell key={i} fill={e.fill}/>)}
+              </Pie>
+              <Tooltip content={({active,payload})=>{
+                if(!active||!payload?.length)return null;
+                const p=payload[0];
+                return <div style={{background:T.greenDark,color:"#fff",padding:"8px 12px",borderRadius:8,fontSize:11,boxShadow:"0 4px 12px rgba(0,0,0,0.2)"}}>
+                  <div style={{fontWeight:700,marginBottom:3}}>{p.payload.full}</div>
+                  <div>{p.value.toLocaleString("pt-BR")} hab.</div>
+                </div>;
+              }}/>
+              <Legend wrapperStyle={{fontSize:10}}/>
+            </PieChart>
+          </ResponsiveContainer>
+          </div>
+        </CC>
+        {favTsbio.length>0&&<CC title="População em Favelas por TSBio" fonte="IBGE Censo 2022" periodo="2022">
+          <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={favTsbio} layout="vertical" margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:v} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={95} tick={{fontSize:10}}/>
+                <Tooltip content={<CTip/>}/>
+                <Bar dataKey="Pop. Favelas" radius={[0,4,4,0]}>{favTsbio.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CC>}
         <CC title="Situação do Domicílio — Urbano vs Rural (%)" fonte="IBGE Censo 2022" periodo="2022">
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={urbRur} layout="vertical" margin={{left:8,right:16,top:8,bottom:8}}>
@@ -582,23 +749,33 @@ export default function Dashboard(){
             </BarChart>
           </ResponsiveContainer>
         </CC>
-        <CC title="Top 12 Municípios por População" fonte="IBGE Censo 2022" periodo="2022">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={top12} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+        <CC title="População por Município" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={munPageData} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:v} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:10}}/>
               <Tooltip content={<CTip/>}/>
-              <Bar dataKey="Pop" radius={[0,4,4,0]}>{top12.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+              <Bar dataKey="Pop" radius={[0,4,4,0]}>{munPageData.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
             </BarChart>
           </ResponsiveContainer>
+          <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:8,marginTop:6}}>
+            {pgBtn(()=>setMunPage(p=>Math.max(0,p-1)),safeMP===0,"‹ Anterior")}
+            <span style={{fontSize:11,color:T.textLight}}>{safeMP+1} / {munTotPg}</span>
+            {pgBtn(()=>setMunPage(p=>Math.min(munTotPg-1,p+1)),safeMP>=munTotPg-1,"Próximo ›")}
+          </div>
         </CC>
-        <CC title="Top 10 Densidade Demográfica (hab/km²)" fonte="IBGE Censo 2022" periodo="2022">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={densRank} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+        <CC title="Densidade Demográfica (hab/km²)" fonte="IBGE Censo 2022" periodo="2022">
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={densPageData} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:10}}/>
               <Tooltip content={<CTip/>}/>
-              <Bar dataKey="hab/km²" radius={[0,4,4,0]}>{densRank.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+              <Bar dataKey="hab/km²" radius={[0,4,4,0]}>{densPageData.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
             </BarChart>
           </ResponsiveContainer>
+          <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:8,marginTop:6}}>
+            {pgBtn(()=>setDensPage(p=>Math.max(0,p-1)),safeDP===0,"‹ Anterior")}
+            <span style={{fontSize:11,color:T.textLight}}>{safeDP+1} / {densTotPg}</span>
+            {pgBtn(()=>setDensPage(p=>Math.min(densTotPg-1,p+1)),safeDP>=densTotPg-1,"Próximo ›")}
+          </div>
         </CC>
       </div>
     </div>;
@@ -606,86 +783,352 @@ export default function Dashboard(){
 
   // ─── ECONOMIA & ÍNDICES ───
   const renderEcon=()=>{
-    const agroBar=byT.map(t=>({name:sh(t.t),full:t.t,"Agro VAB (R$ mil)":+(t.pibAgro/1000).toFixed(0)})).sort((a,b)=>b["Agro VAB (R$ mil)"]-a["Agro VAB (R$ mil)"]);
+    // ── helpers PIB ──
+    const getPib=(m)=>pibDetail[m.c]||{anos:[],agro:[],ind:[],serv:[],adm:[],imp:[],pib:[],pibPC:[],atv1:[]};
+    const valYear=(arr,anos,y)=>{const i=anos.indexOf(y);if(i>=0&&arr[i]!=null)return arr[i];for(let j=arr.length-1;j>=0;j--)if(arr[j]!=null)return arr[j];return 0;};
+
+    // ── KPIs PIB 2023 ──
+    const totalPIB2023=D.reduce((s,m)=>{const pb=getPib(m);return s+(valYear(pb.pib,pb.anos,2023)||0);},0);
+    const avgPIBPC2023=D.length?+(D.reduce((s,m)=>{const pb=getPib(m);return s+(valYear(pb.pibPC,pb.anos,2023)||0);},0)/D.length).toFixed(0):0;
+    // topAtv: usa o ano mais recente com dado disponível (2021)
+    const atvCnt={};
+    D.forEach(m=>{const pb=getPib(m);const i=pb.anos.indexOf(2021);const a=i>=0&&pb.atv1[i]?pb.atv1[i]:'';if(a)atvCnt[a]=(atvCnt[a]||0)+1;});
+    const topAtv=Object.entries(atvCnt).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
+    // short label for atividade — usa includes() em lowercase para ser robusto a encoding
+    const shAtv=(s)=>{
+      if(!s)return '—';
+      const l=s.toLowerCase();
+      if(l.includes('administra'))return 'Adm. Pública';
+      if(l.includes('eletric')||l.includes('saneam')||l.includes('res'))return 'Energia/Saneamento';
+      if(l.includes('florestal')||l.includes('pesca')||l.includes('aquic'))return 'Prod. Florestal/Pesca';
+      if(l.includes('agricult'))return 'Agricultura';
+      if(l.includes('agropec')||l.includes('silvic'))return 'Agropecuária';
+      if(l.includes('pec'))return 'Pecuária';
+      if(l.includes('extrativ')||l.includes('mineral'))return 'Extrativismo';
+      if(l.includes('constru'))return 'Construção';
+      if(l.includes('com'))return 'Comércio';
+      if(l.includes('ind'))return 'Indústria';
+      if(l.includes('servi')||l.includes('demais'))return 'Serviços';
+      return s.length>22?s.slice(0,20)+'…':s;
+    };
+
+    // ── VAB série histórica ──
+    const ALL_ANOS=[2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023];
+    const vabSeries=ALL_ANOS.map(ano=>{
+      let agro=0,ind=0,serv=0,adm=0,imp=0,pibTot=0,hasData=false;
+      D.forEach(m=>{const pb=getPib(m);const i=pb.anos.indexOf(ano);if(i>=0){agro+=(pb.agro[i]||0);ind+=(pb.ind[i]||0);serv+=(pb.serv[i]||0);adm+=(pb.adm[i]||0);imp+=(pb.imp[i]||0);pibTot+=(pb.pib[i]||0);hasData=true;}});
+      if(!hasData||pibTot===0)return null;
+      const obj={ano:ano.toString(),'PIB Total':+(pibTot/1000).toFixed(0)};
+      if(agro+ind+serv+adm>0){obj['Agropecuária']=+(agro/1000).toFixed(0);obj['Indústria']=+(ind/1000).toFixed(0);obj['Serviços']=+(serv/1000).toFixed(0);obj['Adm. Pública']=+(adm/1000).toFixed(0);obj['Impostos']=+(imp/1000).toFixed(0);}
+      return obj;
+    }).filter(Boolean);
+
+    // ── PIB per capita série histórica por TSBio ──
+    const pibPCSeries=ALL_ANOS.map(ano=>{
+      const obj={ano:ano.toString()};
+      byT.forEach(t=>{
+        const ms=D.filter(m=>m.t===t.t);
+        const vals=ms.map(m=>{const pb=getPib(m);const i=pb.anos.indexOf(ano);return i>=0&&pb.pibPC[i]!=null?pb.pibPC[i]:null;}).filter(v=>v!=null);
+        if(vals.length)obj[sh(t.t)]=+(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(0);
+      });
+      return Object.keys(obj).length>1?obj:null;
+    }).filter(Boolean);
+
+    // ── PIB total série histórica por TSBio ──
+    const pibTotSeries=ALL_ANOS.map(ano=>{
+      const obj={ano:ano.toString()};
+      byT.forEach(t=>{
+        const ms=D.filter(m=>m.t===t.t);
+        const tot=ms.reduce((s,m)=>{const pb=getPib(m);const i=pb.anos.indexOf(ano);return s+(i>=0&&pb.pib[i]!=null?pb.pib[i]:0);},0);
+        if(tot>0)obj[sh(t.t)]=+(tot/1000).toFixed(0);
+      });
+      return Object.keys(obj).length>1?obj:null;
+    }).filter(Boolean);
+
+    // ── PIB por município (2023) — paginado ──
+    const PIB_MUN_PS=12;
+    const pibMunAll=[...D].map(m=>{const pb=getPib(m);return{name:sh(m.n),full:m.n,'PIB (R$ Mi)':+(valYear(pb.pib,pb.anos,2023)/1000).toFixed(1),'PIB pc (R$)':+(valYear(pb.pibPC,pb.anos,2023)).toFixed(0),fill:TSBIO_COLORS[m.t]};}).sort((a,b)=>b['PIB (R$ Mi)']-a['PIB (R$ Mi)']);
+    const pibMunTotPg=Math.ceil(pibMunAll.length/PIB_MUN_PS)||1;
+    const safePibMP=Math.min(pibMunPage,pibMunTotPg-1);
+    const pibMunPageData=pibMunAll.slice(safePibMP*PIB_MUN_PS,(safePibMP+1)*PIB_MUN_PS);
+
+    // ── PIB comparativo por TSBio — 2021 ──
+    const pibTsbio2021=byT.map(t=>{
+      const ms=D.filter(m=>m.t===t.t);
+      let agro=0,ind=0,serv=0,adm=0,imp=0;
+      ms.forEach(m=>{const pb=getPib(m);const i=pb.anos.indexOf(2021);if(i>=0){agro+=(pb.agro[i]||0);ind+=(pb.ind[i]||0);serv+=(pb.serv[i]||0);adm+=(pb.adm[i]||0);imp+=(pb.imp[i]||0);}});
+      return{name:sh(t.t),full:t.t,'Agropecuária':+(agro/1000).toFixed(0),'Indústria':+(ind/1000).toFixed(0),'Serviços':+(serv/1000).toFixed(0),'Adm. Pública':+(adm/1000).toFixed(0),'Impostos':+(imp/1000).toFixed(0)};
+    });
+    const pibPie2021=byT.map(t=>{
+      const ms=D.filter(m=>m.t===t.t);
+      const tot=ms.reduce((s,m)=>{const pb=getPib(m);const i=pb.anos.indexOf(2021);return s+(i>=0?(pb.pib[i]||0):0);},0);
+      return{name:sh(t.t),full:t.t,value:+(tot/1000).toFixed(0),fill:TSBIO_COLORS[t.t]||T.green};
+    }).filter(r=>r.value>0);
+    const pibPie2023=byT.map(t=>{
+      const ms=D.filter(m=>m.t===t.t);
+      const tot=ms.reduce((s,m)=>{const pb=getPib(m);const i=pb.anos.indexOf(2023);return s+(i>=0?(pb.pib[i]||0):0);},0);
+      return{name:sh(t.t),full:t.t,value:+(tot/1000).toFixed(0),fill:TSBIO_COLORS[t.t]||T.green};
+    }).filter(r=>r.value>0);
+
+    // ── Tabela PIB resumo — paginada ──
+    const PIB_TBL_PS=10;
+    const pibTblAll=[...D].map(m=>{
+      const pb=getPib(m);
+      const pibVal=valYear(pb.pib,pb.anos,2023);
+      const pcVal=valYear(pb.pibPC,pb.anos,2023);
+      const i21=pb.anos.indexOf(2021);
+      const atv=i21>=0&&pb.atv1[i21]?shAtv(pb.atv1[i21]):'—';
+      return{nome:m.n,tsbio:m.t,'PIB (R$ mil)':pibVal,'PIB pc (R$)':pcVal,atv};
+    }).sort((a,b)=>b['PIB (R$ mil)']-a['PIB (R$ mil)']);
+    const pibTblTotPg=Math.ceil(pibTblAll.length/PIB_TBL_PS)||1;
+    const safePibTP=Math.min(pibTblPage,pibTblTotPg-1);
+    const pibTblData=pibTblAll.slice(safePibTP*PIB_TBL_PS,(safePibTP+1)*PIB_TBL_PS);
+
+    // ── IPS por TSBio ──
+    const ipsBar=byT.map(t=>{
+      const ms=D.filter(m=>m.t===t.t);
+      const avg=(k)=>{const vals=ms.map(m=>ipsData[m.c]?.[k]).filter(v=>v!=null);return vals.length?+(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1):null;};
+      return{name:sh(t.t),full:t.t,'IPS':avg('ips'),'Nec. Básicas':avg('nhb'),'Bem-Estar':avg('fbe'),'Oportunidades':avg('opp')};
+    });
+    const ipsMunRank=[...D].map(m=>{const d=ipsData[m.c];return{name:sh(m.n),full:m.n,'IPS':d?.ips||null,fill:TSBIO_COLORS[m.t]};}).filter(r=>r.IPS!=null).sort((a,b)=>b.IPS-a.IPS);
+    const avgIPS=ipsMunRank.length?+(ipsMunRank.reduce((s,r)=>s+r.IPS,0)/ipsMunRank.length).toFixed(1):null;
+
+    const pgBtnPib=(act,disabled,lbl)=><button onClick={act} disabled={disabled} style={{padding:"2px 10px",borderRadius:4,border:`1px solid ${T.border}`,background:disabled?"#f0f0f0":"#fff",cursor:disabled?"default":"pointer",fontSize:12,color:disabled?T.textLight:T.text}}>{lbl}</button>;
+
+    // ── existing ──
     const radarData=byT.map(t=>({t:t.t,name:sh(t.t),"Educação":+(t.idhm_e*100).toFixed(0),"Longevidade":+(t.idhm_l*100).toFixed(0),"Renda":+(t.idhm_r*100).toFixed(0)}));
     const idhmBar=byT.map(t=>({name:sh(t.t),full:t.t,IDHM:t.idhm,"IDHM-E":t.idhm_e,"IDHM-L":t.idhm_l,"IDHM-R":t.idhm_r}));
     const rendaRank=[...D].sort((a,b)=>(b.rendaPC||0)-(a.rendaPC||0)).slice(0,12).map(m=>({name:sh(m.n),full:m.n,"R$ per capita":m.rendaPC,fill:TSBIO_COLORS[m.t]}));
     const giniData=byT.map(t=>{const ms=D.filter(m=>m.t===t.t);const n=ms.length||1;return{name:sh(t.t),full:t.t,"1991":+(ms.reduce((s,m)=>s+(m.gini91||0),0)/n).toFixed(2),"2000":+(ms.reduce((s,m)=>s+(m.gini00||0),0)/n).toFixed(2),"2010":+(ms.reduce((s,m)=>s+(m.gini10||0),0)/n).toFixed(2)}});
     const rendaTsbio=byT.map(t=>{const ms=D.filter(m=>m.t===t.t);return{name:sh(t.t),full:t.t,"Renda per capita (R$)":Math.round(ms.reduce((s,m)=>s+(m.rendaPC||0),0)/(ms.length||1))}});
-    const totalAgro=D.reduce((s,m)=>s+(m.pibAgro||0),0);
 
-    return <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-        <KPI l="VAB Agropecuário Total (R$ mil)" v={(totalAgro/1000).toLocaleString("pt-BR",{maximumFractionDigits:0})} i="🌾" c={T.green}/>
-        <KPI l="IDHM Médio (2010)" v={avgIDHM} i="📈" c={T.blue}/>
-        <KPI l="Gini Médio (2010)" v={avgGini} i="⚖️" c={T.orange}/>
-        <KPI l="Renda PC Média (R$)" v={`R$${avgRenda.toLocaleString("pt-BR")}`} i="💵" c={T.purple}/>
+    return <div style={{display:"flex",flexDirection:"column",gap:20}}>
+
+      {/* ── SEÇÃO PIB ── */}
+      <div>
+        <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:10}}>Produto Interno Bruto Municipal — IBGE 2023</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:14}}>
+          <KPI l="PIB Total 2023 (R$ mil)" v={(totalPIB2023).toLocaleString("pt-BR",{maximumFractionDigits:0})} i="💰" c={T.green}/>
+          <KPI l="PIB per Capita Médio 2023" v={`R$ ${(+avgPIBPC2023).toLocaleString("pt-BR",{maximumFractionDigits:0})}`} i="👤" c={T.blue}/>
+          <KPI l="Principal Atividade Econômica" v={shAtv(topAtv)} i="🏭" c={T.orange}/>
+          <KPI l="IDHM Médio (2010)" v={avgIDHM} i="📈" c={T.purple}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:14}}>
+          <CC title="Distribuição do VAB por Setor — Série Histórica (R$ Mi)" fonte="IBGE PIB Municipal" periodo="2010–2023">
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={vabSeries} margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <XAxis dataKey="ano" tick={{fontSize:9}}/>
+                <YAxis tickFormatter={v=>`${(v/1000).toFixed(0)}Bi`} tick={{fontSize:9}}/>
+                <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+                <Bar dataKey="Agropecuária" stackId="vab" fill={T.green} radius={[0,0,0,0]}/>
+                <Bar dataKey="Indústria" stackId="vab" fill={T.blue} radius={[0,0,0,0]}/>
+                <Bar dataKey="Serviços" stackId="vab" fill={T.orange} radius={[0,0,0,0]}/>
+                <Bar dataKey="Adm. Pública" stackId="vab" fill={T.purple} radius={[0,0,0,0]}/>
+                <Bar dataKey="Impostos" stackId="vab" fill="#a0aaa0" radius={[4,4,0,0]}/>
+                <Line dataKey="PIB Total" stroke="#222" strokeWidth={2} dot={{r:3,fill:"#222"}} connectNulls/>
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="Distribuição do PIB por TSBio — 2021 (R$ Mi)" fonte="IBGE PIB Municipal" periodo="2021">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={pibTsbio2021} margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <XAxis dataKey="name" tick={{fontSize:10}}/>
+                <YAxis tickFormatter={v=>`${(v/1000).toFixed(0)}Bi`} tick={{fontSize:9}}/>
+                <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+                <Bar dataKey="Agropecuária" stackId="s" fill={T.green} radius={[0,0,0,0]}/>
+                <Bar dataKey="Indústria" stackId="s" fill={T.blue} radius={[0,0,0,0]}/>
+                <Bar dataKey="Serviços" stackId="s" fill={T.orange} radius={[0,0,0,0]}/>
+                <Bar dataKey="Adm. Pública" stackId="s" fill={T.purple} radius={[0,0,0,0]}/>
+                <Bar dataKey="Impostos" stackId="s" fill="#a0aaa0" radius={[4,4,0,0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="Participação no PIB Total por TSBio — 2023" fonte="IBGE PIB Municipal" periodo="2023">
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={pibPie2023} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({percent})=>`${(percent*100).toFixed(1)}%`} labelLine={false}>
+                  {pibPie2023.map((e,i)=><Cell key={i} fill={e.fill}/>)}
+                </Pie>
+                <Tooltip content={<CTip/>}/>
+                <Legend wrapperStyle={{fontSize:10}}/>
+              </PieChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="PIB Municipal 2023 (R$ Mi)" fonte="IBGE PIB Municipal" periodo="2023">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={pibMunPageData} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <XAxis type="number" tickFormatter={v=>`${v}M`} tick={{fontSize:9}}/>
+                <YAxis type="category" dataKey="name" width={80} tick={{fontSize:9}}/>
+                <Tooltip content={<CTip/>}/>
+                <Bar dataKey="PIB (R$ Mi)" radius={[0,4,4,0]}>{pibMunPageData.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:8,marginTop:6}}>
+              {pgBtnPib(()=>setPibMunPage(p=>Math.max(0,p-1)),safePibMP===0,"‹ Anterior")}
+              <span style={{fontSize:11,color:T.textLight}}>{safePibMP+1} / {pibMunTotPg}</span>
+              {pgBtnPib(()=>setPibMunPage(p=>Math.min(pibMunTotPg-1,p+1)),safePibMP>=pibMunTotPg-1,"Próximo ›")}
+            </div>
+          </CC>
+          <CC title="PIB Total — Série Histórica por TSBio (R$ Mi)" fonte="IBGE PIB Municipal" periodo="2010–2023">
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={pibTotSeries} margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <XAxis dataKey="ano" tick={{fontSize:9}}/>
+                <YAxis tickFormatter={v=>`${(v/1000).toFixed(0)}Bi`} tick={{fontSize:9}}/>
+                <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+                {byT.map(t=><Line key={t.t} type="monotone" dataKey={sh(t.t)} stroke={TSBIO_COLORS[t.t]||T.green} strokeWidth={2} dot={false} connectNulls/>)}
+              </LineChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="PIB per Capita — Série Histórica por TSBio (R$)" fonte="IBGE PIB Municipal" periodo="2010–2023">
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={pibPCSeries} margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <XAxis dataKey="ano" tick={{fontSize:9}}/>
+                <YAxis tickFormatter={v=>`R$${(v/1000).toFixed(0)}k`} tick={{fontSize:9}}/>
+                <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+                {byT.map(t=><Line key={t.t} type="monotone" dataKey={sh(t.t)} stroke={TSBIO_COLORS[t.t]||T.green} strokeWidth={2} dot={false} connectNulls/>)}
+              </LineChart>
+            </ResponsiveContainer>
+          </CC>
+        </div>
+
+        {/* Tabela PIB resumo */}
+        <div style={{marginTop:8}}>
+        <CC title="Resumo PIB por Município — 2023" fonte="IBGE PIB Municipal" periodo="2023">
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,textAlign:"center"}}>
+            <thead>
+              <tr style={{background:T.greenDark,color:"#fff"}}>
+                <th style={{padding:"6px 10px",textAlign:"left",fontWeight:600}}>Município</th>
+                <th style={{padding:"6px 10px",textAlign:"center",fontWeight:600}}>TSBio</th>
+                <th style={{padding:"6px 10px",textAlign:"center",fontWeight:600}}>PIB (R$ mil)</th>
+                <th style={{padding:"6px 10px",textAlign:"center",fontWeight:600}}>PIB per Capita (R$)</th>
+                <th style={{padding:"6px 10px",textAlign:"center",fontWeight:600}}>Atividade Principal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pibTblData.map((r,i)=>(
+                <tr key={i} style={{background:i%2===0?"#fff":"#f7faf7",borderBottom:`1px solid ${T.border}`}}>
+                  <td style={{padding:"5px 10px",fontWeight:600,color:T.text,textAlign:"left"}}>{r.nome}</td>
+                  <td style={{padding:"5px 10px",color:TSBIO_COLORS[r.tsbio]||T.textLight,fontWeight:600,whiteSpace:"nowrap",textAlign:"center"}}>{r.tsbio}</td>
+                  <td style={{padding:"5px 10px",textAlign:"center"}}>{r['PIB (R$ mil)']>0?r['PIB (R$ mil)'].toLocaleString("pt-BR",{maximumFractionDigits:0}):"—"}</td>
+                  <td style={{padding:"5px 10px",textAlign:"center"}}>{r['PIB pc (R$)']>0?`R$ ${(+r['PIB pc (R$)']).toLocaleString("pt-BR",{maximumFractionDigits:0})}`:"—"}</td>
+                  <td style={{padding:"5px 10px",color:T.textLight,textAlign:"center"}}>{r.atv}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:8,marginTop:10}}>
+            {pgBtnPib(()=>setPibTblPage(p=>Math.max(0,p-1)),safePibTP===0,"‹ Anterior")}
+            <span style={{fontSize:11,color:T.textLight}}>{safePibTP+1} / {pibTblTotPg} · {pibTblAll.length} municípios</span>
+            {pgBtnPib(()=>setPibTblPage(p=>Math.min(pibTblTotPg-1,p+1)),safePibTP>=pibTblTotPg-1,"Próximo ›")}
+          </div>
+        </CC>
+        </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:14}}>
-        <CC title="Valor Adicionado Bruto — Agropecuária por TSBio (R$ mil)" fonte="IBGE PIB Municipal" periodo="Mais recente disponível">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={agroBar} margin={{left:8,right:16,top:8,bottom:8}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`${(v/1000).toFixed(0)}M`} tick={{fontSize:10}}/>
-              <Tooltip content={<CTip/>}/>
-              <Bar dataKey="Agro VAB (R$ mil)" radius={[4,4,0,0]}>{agroBar.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </CC>
-        <CC title="IDHM Desagregado por Dimensão" fonte="Atlas do Desenvolvimento Humano" periodo="2010">
-          <ResponsiveContainer width="100%" height={250}>
-            <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
-              <PolarGrid stroke="#ddd"/><PolarAngleAxis dataKey="name" tick={{fontSize:10}}/>
-              <PolarRadiusAxis angle={90} domain={[20,90]} tick={{fontSize:9}}/>
-              <Radar name="Educação" dataKey="Educação" stroke={T.blue} fill={T.blue} fillOpacity={0.15} strokeWidth={2}/>
-              <Radar name="Longevidade" dataKey="Longevidade" stroke={T.green} fill={T.green} fillOpacity={0.15} strokeWidth={2}/>
-              <Radar name="Renda" dataKey="Renda" stroke={T.orange} fill={T.orange} fillOpacity={0.15} strokeWidth={2}/>
-              <Legend wrapperStyle={{fontSize:10}}/>
-              <Tooltip/>
-            </RadarChart>
-          </ResponsiveContainer>
-        </CC>
-        <CC title="IDHM e Componentes por TSBio" fonte="Atlas do Desenvolvimento Humano" periodo="2010">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={idhmBar} margin={{left:8,right:16,top:8,bottom:8}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis domain={[0.2,0.85]} tick={{fontSize:10}}/>
-              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
-              <Bar dataKey="IDHM" fill={T.text} radius={[4,4,0,0]}/>
-              <Bar dataKey="IDHM-E" fill={T.blue} radius={[4,4,0,0]}/>
-              <Bar dataKey="IDHM-L" fill={T.green} radius={[4,4,0,0]}/>
-              <Bar dataKey="IDHM-R" fill={T.orange} radius={[4,4,0,0]}/>
-            </BarChart>
-          </ResponsiveContainer>
-        </CC>
-        <CC title="Evolução do Índice de Gini" fonte="Atlas DH Censo" periodo="1991, 2000, 2010">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={giniData} margin={{left:8,right:16,top:8,bottom:8}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis domain={[0.4,0.7]} tick={{fontSize:10}}/>
-              <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
-              <Bar dataKey="1991" fill="#b0c4b0" radius={[4,4,0,0]}/>
-              <Bar dataKey="2000" fill={T.orange} radius={[4,4,0,0]}/>
-              <Bar dataKey="2010" fill={T.red} radius={[4,4,0,0]}/>
-            </BarChart>
-          </ResponsiveContainer>
-        </CC>
-        <CC title="Rendimento Domiciliar Per Capita — Top 12" fonte="IBGE Censo 2022" periodo="2022">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={rendaRank} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" tickFormatter={v=>`R$${v}`} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:10}}/>
-              <Tooltip content={<CTip/>}/>
-              <Bar dataKey="R$ per capita" radius={[0,4,4,0]}>{rendaRank.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </CC>
-        <CC title="Rendimento Domiciliar Médio por TSBio (R$)" fonte="IBGE Censo 2022" periodo="2022">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={rendaTsbio} margin={{left:8,right:16,top:8,bottom:8}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`R$${v}`} tick={{fontSize:10}}/>
-              <Tooltip content={<CTip/>}/>
-              <Bar dataKey="Renda per capita (R$)" radius={[4,4,0,0]}>{rendaTsbio.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </CC>
+
+      {/* ── SEÇÃO IPS ── */}
+      <div>
+        <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:10}}>Índice de Progresso Social — IPS Brasil 2025</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:14}}>
+          <KPI l="IPS Médio (0–100)" v={avgIPS??'—'} i="🌱" c={T.green}/>
+          <KPI l="Gini Médio (2010)" v={avgGini} i="⚖️" c={T.orange}/>
+          <KPI l="Renda PC Média (R$)" v={`R$${avgRenda.toLocaleString("pt-BR")}`} i="💵" c={T.purple}/>
+          <KPI l="Municípios c/ IPS" v={ipsMunRank.length} i="🏛️" c={T.blue}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:14}}>
+          <CC title="IPS e Pilares por Território TSBio" fonte="IPS Brasil 2025" periodo="2025">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={ipsBar} margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <XAxis dataKey="name" tick={{fontSize:10}}/>
+                <YAxis domain={[0,100]} tick={{fontSize:10}}/>
+                <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+                <Bar dataKey="IPS" fill={T.green} radius={[4,4,0,0]}/>
+                <Bar dataKey="Nec. Básicas" fill={T.blue} radius={[4,4,0,0]}/>
+                <Bar dataKey="Bem-Estar" fill={T.orange} radius={[4,4,0,0]}/>
+                <Bar dataKey="Oportunidades" fill={T.purple} radius={[4,4,0,0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="Ranking IPS por Município" fonte="IPS Brasil 2025" periodo="2025">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={ipsMunRank} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <XAxis type="number" domain={[0,100]} tick={{fontSize:9}}/>
+                <YAxis type="category" dataKey="name" width={80} tick={{fontSize:9}}/>
+                <Tooltip content={<CTip/>}/>
+                <Bar dataKey="IPS" radius={[0,4,4,0]}>{ipsMunRank.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CC>
+        </div>
       </div>
+
+      {/* ── SEÇÃO ÍNDICES ── */}
+      <div>
+        <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:10}}>Índices de Desenvolvimento e Desigualdade</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:14}}>
+          <CC title="IDHM Desagregado por Dimensão" fonte="Atlas do Desenvolvimento Humano" periodo="2010">
+            <ResponsiveContainer width="100%" height={250}>
+              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                <PolarGrid stroke="#ddd"/><PolarAngleAxis dataKey="name" tick={{fontSize:10}}/>
+                <PolarRadiusAxis angle={90} domain={[20,90]} tick={{fontSize:9}}/>
+                <Radar name="Educação" dataKey="Educação" stroke={T.blue} fill={T.blue} fillOpacity={0.15} strokeWidth={2}/>
+                <Radar name="Longevidade" dataKey="Longevidade" stroke={T.green} fill={T.green} fillOpacity={0.15} strokeWidth={2}/>
+                <Radar name="Renda" dataKey="Renda" stroke={T.orange} fill={T.orange} fillOpacity={0.15} strokeWidth={2}/>
+                <Legend wrapperStyle={{fontSize:10}}/>
+                <Tooltip/>
+              </RadarChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="IDHM e Componentes por TSBio" fonte="Atlas do Desenvolvimento Humano" periodo="2010">
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={idhmBar} margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis domain={[0.2,0.85]} tick={{fontSize:10}}/>
+                <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+                <Bar dataKey="IDHM" fill={T.text} radius={[4,4,0,0]}/>
+                <Bar dataKey="IDHM-E" fill={T.blue} radius={[4,4,0,0]}/>
+                <Bar dataKey="IDHM-L" fill={T.green} radius={[4,4,0,0]}/>
+                <Bar dataKey="IDHM-R" fill={T.orange} radius={[4,4,0,0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="Evolução do Índice de Gini" fonte="Atlas DH Censo" periodo="1991, 2000, 2010">
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={giniData} margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis domain={[0.4,0.7]} tick={{fontSize:10}}/>
+                <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
+                <Bar dataKey="1991" fill="#b0c4b0" radius={[4,4,0,0]}/>
+                <Bar dataKey="2000" fill={T.orange} radius={[4,4,0,0]}/>
+                <Bar dataKey="2010" fill={T.red} radius={[4,4,0,0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="Rendimento Domiciliar Per Capita — Top 12" fonte="IBGE Censo 2022" periodo="2022">
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={rendaRank} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis type="number" tickFormatter={v=>`R$${v}`} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={90} tick={{fontSize:10}}/>
+                <Tooltip content={<CTip/>}/>
+                <Bar dataKey="R$ per capita" radius={[0,4,4,0]}>{rendaRank.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="Rendimento Domiciliar Médio por TSBio (R$)" fonte="IBGE Censo 2022" periodo="2022">
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={rendaTsbio} margin={{left:8,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/><XAxis dataKey="name" tick={{fontSize:10}}/><YAxis tickFormatter={v=>`R$${v}`} tick={{fontSize:10}}/>
+                <Tooltip content={<CTip/>}/>
+                <Bar dataKey="Renda per capita (R$)" radius={[4,4,0,0]}>{rendaTsbio.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||T.green}/>)}</Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CC>
+        </div>
+      </div>
+
     </div>;
   };
 
@@ -3483,55 +3926,71 @@ export default function Dashboard(){
     </header>
 
     {/* FILTERS */}
-    <div style={{background:"#fff",borderBottom:`1px solid ${T.border}`,padding:"10px 24px",display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end"}}>
-      <MultiSel label="Território TSBio" opts={TSBIO_LIST.map(t=>({value:t,label:t}))} sel={selT} onChange={setSelT} cmap={TSBIO_COLORS}/>
-      <MultiSel label="Município" opts={mOpts} sel={selM} onChange={setSelM}/>
-      <div style={{fontSize:11,color:T.textLight,padding:"0 0 5px"}}>{selT.length} territórios · {selM.length>0?`${selM.length} municípios selecionados`:`${fM.length} municípios`}</div>
+    <div style={{background:"#fff",borderBottom:`1px solid ${T.border}`}}>
+      <div style={{maxWidth:1380,margin:"0 auto",padding:"10px 24px",display:"flex",gap:16,flexWrap:"wrap",alignItems:"flex-end"}}>
+        <MultiSel label="Território TSBio" opts={TSBIO_LIST.map(t=>({value:t,label:t}))} sel={selT} onChange={setSelT} cmap={TSBIO_COLORS}/>
+        <MultiSel label="Município" opts={mOpts} sel={selM} onChange={setSelM}/>
+        <div style={{fontSize:11,color:T.textLight,padding:"0 0 5px"}}>{selT.length} territórios · {selM.length>0?`${selM.length} municípios selecionados`:`${fM.length} municípios`}</div>
+      </div>
     </div>
 
     {/* DIMENSION TABS */}
-    <div style={{background:"#fff",borderBottom:`2px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
-      {DIMS.map(d=><button key={d.id} onClick={()=>{setDim(d.id);if(d.id==="socio")setSub("demo");if(d.id==="amb")setSub("desm");if(d.id==="prod")setSub("agro");if(d.id==="infra")setSub("san");if(d.id==="pol")setSub("prog");if(d.id==="vuln")setSub("over")}} style={{padding:"10px 14px",border:"none",borderBottom:dim===d.id?`3px solid ${T.green}`:"3px solid transparent",background:dim===d.id?"rgba(27,122,61,0.04)":"transparent",color:dim===d.id?T.green:d.on?"#4a5a4a":"#b0b8b0",fontSize:12,fontWeight:dim===d.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,fontFamily:"inherit",transition:"all 0.15s"}}>
-        <span style={{fontSize:14}}>{d.i}</span>{d.l}
-        {!d.on&&<span style={{fontSize:8,background:"#e8ebe8",color:"#8a9a8a",padding:"1px 5px",borderRadius:6,fontWeight:600}}>EM BREVE</span>}
-      </button>)}
+    <div style={{background:"#fff",borderBottom:`2px solid ${T.border}`}}>
+      <div style={{maxWidth:1380,margin:"0 auto",padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+        {DIMS.map(d=><button key={d.id} onClick={()=>{setDim(d.id);if(d.id==="socio")setSub("demo");if(d.id==="amb")setSub("desm");if(d.id==="prod")setSub("agro");if(d.id==="infra")setSub("san");if(d.id==="pol")setSub("prog");if(d.id==="vuln")setSub("over")}} style={{padding:"10px 14px",border:"none",borderBottom:dim===d.id?`3px solid ${T.green}`:"3px solid transparent",background:dim===d.id?"rgba(27,122,61,0.04)":"transparent",color:dim===d.id?T.green:d.on?"#4a5a4a":"#b0b8b0",fontSize:12,fontWeight:dim===d.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,fontFamily:"inherit",transition:"all 0.15s"}}>
+          <span style={{fontSize:14}}>{d.i}</span>{d.l}
+          {!d.on&&<span style={{fontSize:8,background:"#e8ebe8",color:"#8a9a8a",padding:"1px 5px",borderRadius:6,fontWeight:600}}>EM BREVE</span>}
+        </button>)}
+      </div>
     </div>
 
     {/* SUB-TABS (socio) */}
-    {dim==="socio"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
-      {SUBTABS.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
-        <span style={{fontSize:13}}>{s.i}</span>{s.l}
-      </button>)}
+    {dim==="socio"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`}}>
+      <div style={{maxWidth:1380,margin:"0 auto",padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+        {SUBTABS.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
+          <span style={{fontSize:13}}>{s.i}</span>{s.l}
+        </button>)}
+      </div>
     </div>}
     {/* SUB-TABS (amb) */}
-    {dim==="amb"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
-      {SUBTABS_AMB.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
-        <span style={{fontSize:13}}>{s.i}</span>{s.l}
-      </button>)}
+    {dim==="amb"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`}}>
+      <div style={{maxWidth:1380,margin:"0 auto",padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+        {SUBTABS_AMB.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
+          <span style={{fontSize:13}}>{s.i}</span>{s.l}
+        </button>)}
+      </div>
     </div>}
     {/* SUB-TABS (prod) */}
-    {dim==="prod"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
-      {SUBTABS_PROD.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
-        <span style={{fontSize:13}}>{s.i}</span>{s.l}
-      </button>)}
+    {dim==="prod"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`}}>
+      <div style={{maxWidth:1380,margin:"0 auto",padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+        {SUBTABS_PROD.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
+          <span style={{fontSize:13}}>{s.i}</span>{s.l}
+        </button>)}
+      </div>
     </div>}
     {/* SUB-TABS (infra) */}
-    {dim==="infra"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
-      {SUBTABS_INFRA.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
-        <span style={{fontSize:13}}>{s.i}</span>{s.l}
-      </button>)}
+    {dim==="infra"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`}}>
+      <div style={{maxWidth:1380,margin:"0 auto",padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+        {SUBTABS_INFRA.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
+          <span style={{fontSize:13}}>{s.i}</span>{s.l}
+        </button>)}
+      </div>
     </div>}
     {/* SUB-TABS (pol) */}
-    {dim==="pol"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
-      {SUBTABS_POL.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
-        <span style={{fontSize:13}}>{s.i}</span>{s.l}
-      </button>)}
+    {dim==="pol"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`}}>
+      <div style={{maxWidth:1380,margin:"0 auto",padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+        {SUBTABS_POL.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${T.blue}`:"2px solid transparent",background:sub===s.id?"rgba(46,134,171,0.04)":"transparent",color:sub===s.id?T.blue:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
+          <span style={{fontSize:13}}>{s.i}</span>{s.l}
+        </button>)}
+      </div>
     </div>}
     {/* SUB-TABS (vuln) */}
-    {dim==="vuln"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`,padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
-      {SUBTABS_VUL.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${VUL_COLORS.saude}`:"2px solid transparent",background:sub===s.id?"rgba(196,52,45,0.04)":"transparent",color:sub===s.id?VUL_COLORS.saude:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
-        <span style={{fontSize:13}}>{s.i}</span>{s.l}
-      </button>)}
+    {dim==="vuln"&&<div style={{background:"#fafbfa",borderBottom:`1px solid ${T.border}`}}>
+      <div style={{maxWidth:1380,margin:"0 auto",padding:"0 24px",display:"flex",gap:0,overflowX:"auto"}}>
+        {SUBTABS_VUL.map(s=><button key={s.id} onClick={()=>setSub(s.id)} style={{padding:"8px 14px",border:"none",borderBottom:sub===s.id?`2px solid ${VUL_COLORS.saude}`:"2px solid transparent",background:sub===s.id?"rgba(196,52,45,0.04)":"transparent",color:sub===s.id?VUL_COLORS.saude:"#6a7a6a",fontSize:11.5,fontWeight:sub===s.id?700:500,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4,fontFamily:"inherit",transition:"all 0.15s"}}>
+          <span style={{fontSize:13}}>{s.i}</span>{s.l}
+        </button>)}
+      </div>
     </div>}
 
     {/* CONTENT */}

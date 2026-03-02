@@ -12,7 +12,8 @@
       "Bash(cmd /c \"dir \"\"c:\\\\Users\\\\luiz.felipe\\\\Desktop\\\\FLP\\\\MapiaEng\\\\GitHub\\\\fas_tsbio\\\\data\\\\Indicadores_processado_por_tema\\\\csv\"\" /b\")",
       "Bash(powershell -Command \"Get-ChildItem -Path ''c:\\\\Users\\\\luiz.felipe\\\\Desktop\\\\FLP\\\\MapiaEng\\\\GitHub\\\\fas_tsbio\\\\data\\\\Indicadores_processado_por_tema\\\\csv'' -Name\")",
       "Bash(powershell -Command:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(python3:*)"
     ]
   }
 }
