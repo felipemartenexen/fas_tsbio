@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, Children, isValidElement, useCallback } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, CartesianGrid, LineChart, Line, ComposedChart, Area, AreaChart } from "recharts";
+import { toPng } from "html-to-image";
+import * as XLSX from "xlsx";
 
 // ═══════════════════════════════════════════════════════
 // THEME & CONSTANTS
@@ -16,6 +18,12 @@ const TSBIO_COLORS = {
   "Portel": T.purple, "Rio Branco-Brasiléia": T.red, "Salgado-Bragantino": T.gold,
 };
 const TSBIO_LIST = Object.keys(TSBIO_COLORS);
+
+// Categorical palette — for sectors, dimensions, categories (NOT territories)
+const S = {
+  green: "#10b981", blue: "#3b82f6", orange: "#f59e0b", purple: "#8b5cf6",
+  red: "#ef4444", yellow: "#eab308", teal: "#14b8a6", pink: "#ec4899", gray: "#6b7280",
+};
 
 // Favela population by municipality name (Censo 2022)
 const FAVELA_POP = {
@@ -124,7 +132,8 @@ function buildMunicipios(munJson, socioJson) {
     // ── Race / Color (2022) ──
     // order: [branca, preta, amarela, parda, indígena]
     const rc    = racaD[munName] || {};
-    const rcPop = rc["2022_populacao_pessoas"] || [0, 0, 0, 0, 0];
+    const rcRaw = rc["2022_populacao_pessoas"];
+    const rcPop = Array.isArray(rcRaw) ? rcRaw : [0, 0, 0, 0, 0];
     const totRc = rcPop.reduce((s, v) => s + (v || 0), 0);
     const pct   = (i) => totRc > 0 ? +((rcPop[i] || 0) / totRc * 100).toFixed(1) : 0;
 
@@ -414,16 +423,68 @@ const LULC_N1_COLORS = {
 // ═══════════════════════════════════════════════════════
 const FB = ({f}) => <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:16,background:"rgba(27,122,61,0.08)",color:T.green,fontSize:10,fontWeight:600,border:"1px solid rgba(27,122,61,0.15)"}}>📊 {f}</span>;
 
-const CC = ({title,fonte,periodo,children}) => (
-  <div style={{background:"#fff",borderRadius:12,padding:"16px 18px 12px",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",border:`1px solid ${T.border}`,display:"flex",flexDirection:"column",gap:8}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
-      <h3 style={{margin:0,fontSize:13.5,fontWeight:700,color:T.text,lineHeight:1.3}}>{title}</h3>
-      <FB f={fonte}/>
-    </div>
-    <div style={{flex:1,display:"flex",flexDirection:"column"}}>{children}</div>
-    {periodo&&<div style={{fontSize:10,color:T.textLight,borderTop:"1px solid #f0f2f0",paddingTop:6}}>Período: {periodo}</div>}
-  </div>
+/** Recursively extract the `data` array from the first Recharts chart found inside children */
+function findChartData(el) {
+  if (!el || typeof el !== "object") return null;
+  if (isValidElement(el)) {
+    if (Array.isArray(el.props?.data) && el.props.data.length > 0) return el.props.data;
+    const kids = Children.toArray(el.props?.children);
+    for (const k of kids) { const r = findChartData(k); if (r) return r; }
+  }
+  if (Array.isArray(el)) { for (const k of el) { const r = findChartData(k); if (r) return r; } }
+  return null;
+}
+
+function slugify(s) { return s.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "").substring(0, 60); }
+
+const DlBtn = ({icon, tip, onClick}) => (
+  <button onClick={onClick} title={tip} style={{background:"none",border:"1px solid #d0d4d0",borderRadius:6,cursor:"pointer",padding:"3px 6px",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:13,color:T.textLight,lineHeight:1,transition:"background 0.15s"}}
+    onMouseEnter={e=>e.currentTarget.style.background="#f0f2f0"} onMouseLeave={e=>e.currentTarget.style.background="none"}>{icon}</button>
 );
+
+const CC = ({title,fonte,periodo,children,data:dataProp}) => {
+  const ref = useRef(null);
+
+  const handleImage = useCallback(() => {
+    if (!ref.current) return;
+    toPng(ref.current, { backgroundColor: "#fff", pixelRatio: 2, cacheBust: true })
+      .then(url => { const a = document.createElement("a"); a.href = url; a.download = `${slugify(title)}.png`; a.click(); })
+      .catch(e => console.error("Erro ao exportar imagem:", e));
+  }, [title]);
+
+  const handleExcel = useCallback(() => {
+    const d = dataProp || findChartData(children);
+    if (!d || d.length === 0) return;
+    const flat = d.map(row => {
+      const o = {};
+      Object.entries(row).forEach(([k, v]) => {
+        if (typeof v === "number" || typeof v === "string") o[k] = v;
+      });
+      return o;
+    });
+    const ws = XLSX.utils.json_to_sheet(flat);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Dados");
+    XLSX.writeFile(wb, `${slugify(title)}.xlsx`);
+  }, [title, dataProp, children]);
+
+  const hasData = dataProp || findChartData(children);
+
+  return (
+    <div ref={ref} style={{background:"#fff",borderRadius:12,padding:"16px 18px 12px",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",border:`1px solid ${T.border}`,display:"flex",flexDirection:"column",gap:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:6}}>
+        <h3 style={{margin:0,fontSize:13.5,fontWeight:700,color:T.text,lineHeight:1.3,flex:1}}>{title}</h3>
+        <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+          <DlBtn icon="📷" tip="Baixar imagem" onClick={handleImage}/>
+          {hasData && <DlBtn icon="📥" tip="Baixar dados em Excel" onClick={handleExcel}/>}
+          <FB f={fonte}/>
+        </div>
+      </div>
+      <div style={{flex:1,display:"flex",flexDirection:"column"}}>{children}</div>
+      {periodo&&<div style={{fontSize:10,color:T.textLight,borderTop:"1px solid #f0f2f0",paddingTop:6}}>Período: {periodo}</div>}
+    </div>
+  );
+};
 
 const KPI = ({l,v,u,i,c}) => (
   <div style={{background:"#fff",borderRadius:12,padding:"14px 16px",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",border:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:12}}>
@@ -494,6 +555,7 @@ export default function Dashboard(){
   const[densPage,setDensPage]=useState(0);
   const[pibMunPage,setPibMunPage]=useState(0);
   const[pibTblPage,setPibTblPage]=useState(0);
+  const[ipsMunPage,setIpsMunPage]=useState(0);
 
   useEffect(()=>{
     Promise.all([
@@ -885,13 +947,22 @@ export default function Dashboard(){
     const pibTblData=pibTblAll.slice(safePibTP*PIB_TBL_PS,(safePibTP+1)*PIB_TBL_PS);
 
     // ── IPS por TSBio ──
-    const ipsBar=byT.map(t=>{
-      const ms=D.filter(m=>m.t===t.t);
-      const avg=(k)=>{const vals=ms.map(m=>ipsData[m.c]?.[k]).filter(v=>v!=null);return vals.length?+(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1):null;};
-      return{name:sh(t.t),full:t.t,'IPS':avg('ips'),'Nec. Básicas':avg('nhb'),'Bem-Estar':avg('fbe'),'Oportunidades':avg('opp')};
-    });
-    const ipsMunRank=[...D].map(m=>{const d=ipsData[m.c];return{name:sh(m.n),full:m.n,'IPS':d?.ips||null,fill:TSBIO_COLORS[m.t]};}).filter(r=>r.IPS!=null).sort((a,b)=>b.IPS-a.IPS);
-    const avgIPS=ipsMunRank.length?+(ipsMunRank.reduce((s,r)=>s+r.IPS,0)/ipsMunRank.length).toFixed(1):null;
+    const ipsAvgT=(t,k)=>{const vals=D.filter(m=>m.t===t).map(m=>ipsData[m.c]?.[k]).filter(v=>v!=null);return vals.length?+(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1):null;};
+    const ipsBar=byT.map(t=>({name:sh(t.t),full:t.t,'IPS':ipsAvgT(t.t,'ips')}));
+    const IPS_COMPS=[
+      {k:'nutricao',l:'Nutrição'},{k:'agua',l:'Água e Saneamento'},{k:'moradia',l:'Moradia'},
+      {k:'seguranca',l:'Segurança'},{k:'conhecimento',l:'Conhecimento Básico'},{k:'info',l:'Informação e Comunicação'},
+      {k:'saude',l:'Saúde e Bem-Estar'},{k:'meioamb',l:'Qualidade Ambiental'},{k:'direitos',l:'Direitos Individuais'},
+      {k:'liberdades',l:'Liberdade e Escolha'},{k:'inclusao',l:'Inclusão'},{k:'edu_sup',l:'Educação Superior'},
+    ];
+    const ipsRadar12=IPS_COMPS.map(c=>{const row={comp:c.l};byT.forEach(t=>{row[t.t]=ipsAvgT(t.t,c.k);});return row;});
+    const ipsTblComps=IPS_COMPS.map(c=>{const row={comp:c.l};byT.forEach(t=>{row[t.t]=ipsAvgT(t.t,c.k);});return row;});
+    const ipsMunRankAll=[...D].map(m=>{const d=ipsData[m.c];return{name:sh(m.n),full:m.n,tsbio:m.t,'IPS':d?.ips!=null?+d.ips.toFixed(1):null,fill:TSBIO_COLORS[m.t]};}).filter(r=>r.IPS!=null).sort((a,b)=>b.IPS-a.IPS).map((r,i)=>({...r,rank:i+1,rankName:`#${i+1} ${r.name}`}));
+    const IPS_MUN_PS=12;
+    const ipsMunTotPg=Math.ceil(ipsMunRankAll.length/IPS_MUN_PS)||1;
+    const safeIpsMp=Math.min(ipsMunPage,ipsMunTotPg-1);
+    const ipsMunPageData=ipsMunRankAll.slice(safeIpsMp*IPS_MUN_PS,(safeIpsMp+1)*IPS_MUN_PS);
+    const avgIPS=ipsMunRankAll.length?+(ipsMunRankAll.reduce((s,r)=>s+r.IPS,0)/ipsMunRankAll.length).toFixed(1):null;
 
     const pgBtnPib=(act,disabled,lbl)=><button onClick={act} disabled={disabled} style={{padding:"2px 10px",borderRadius:4,border:`1px solid ${T.border}`,background:disabled?"#f0f0f0":"#fff",cursor:disabled?"default":"pointer",fontSize:12,color:disabled?T.textLight:T.text}}>{lbl}</button>;
 
@@ -1037,33 +1108,91 @@ export default function Dashboard(){
           <KPI l="IPS Médio (0–100)" v={avgIPS??'—'} i="🌱" c={T.green}/>
           <KPI l="Gini Médio (2010)" v={avgGini} i="⚖️" c={T.orange}/>
           <KPI l="Renda PC Média (R$)" v={`R$${avgRenda.toLocaleString("pt-BR")}`} i="💵" c={T.purple}/>
-          <KPI l="Municípios c/ IPS" v={ipsMunRank.length} i="🏛️" c={T.blue}/>
+          <KPI l="Municípios c/ IPS" v={ipsMunRankAll.length} i="🏛️" c={T.blue}/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(360px,1fr))",gap:14}}>
-          <CC title="IPS e Pilares por Território TSBio" fonte="IPS Brasil 2025" periodo="2025">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={ipsBar} margin={{left:8,right:16,top:8,bottom:8}}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
-                <XAxis dataKey="name" tick={{fontSize:10}}/>
-                <YAxis domain={[0,100]} tick={{fontSize:10}}/>
-                <Tooltip content={<CTip/>}/><Legend wrapperStyle={{fontSize:10}}/>
-                <Bar dataKey="IPS" fill={T.green} radius={[4,4,0,0]}/>
-                <Bar dataKey="Nec. Básicas" fill={T.blue} radius={[4,4,0,0]}/>
-                <Bar dataKey="Bem-Estar" fill={T.orange} radius={[4,4,0,0]}/>
-                <Bar dataKey="Oportunidades" fill={T.purple} radius={[4,4,0,0]}/>
-              </BarChart>
-            </ResponsiveContainer>
-          </CC>
-          <CC title="Ranking IPS por Município" fonte="IPS Brasil 2025" periodo="2025">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={ipsMunRank} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+          <CC title="IPS por Território TSBio" fonte="IPS Brasil 2025" periodo="2025">
+            <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={ipsBar} layout="vertical" margin={{left:8,right:24,top:8,bottom:8}}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
                 <XAxis type="number" domain={[0,100]} tick={{fontSize:9}}/>
-                <YAxis type="category" dataKey="name" width={80} tick={{fontSize:9}}/>
+                <YAxis type="category" dataKey="name" width={100} tick={{fontSize:10}}/>
                 <Tooltip content={<CTip/>}/>
-                <Bar dataKey="IPS" radius={[0,4,4,0]}>{ipsMunRank.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+                <Bar dataKey="IPS" radius={[0,4,4,0]} label={{position:'right',fontSize:10,fontWeight:700,formatter:v=>v?.toFixed(1)}}>{ipsBar.map((e,i)=><Cell key={i} fill={TSBIO_COLORS[e.full]||S.green}/>)}</Bar>
               </BarChart>
             </ResponsiveContainer>
+            </div>
+          </CC>
+          <CC title="Ranking IPS por Município" fonte="IPS Brasil 2025" periodo="2025" data={ipsMunRankAll}>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={ipsMunPageData} layout="vertical" margin={{left:4,right:16,top:8,bottom:8}}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#eee"/>
+                <XAxis type="number" domain={[0,100]} tick={{fontSize:9}}/>
+                <YAxis type="category" dataKey="rankName" width={100} tick={{fontSize:9}}/>
+                <Tooltip content={({active,payload})=>{
+                  if(!active||!payload?.length)return null;
+                  const p=payload[0].payload;
+                  return <div style={{background:T.greenDark,color:"#fff",padding:"6px 10px",borderRadius:6,fontSize:11,boxShadow:"0 2px 8px rgba(0,0,0,0.25)"}}>
+                    <span style={{fontWeight:700}}>#{p.rank} {p.full}</span> — <b>{p.IPS}</b>
+                  </div>;
+                }}/>
+                <Bar dataKey="IPS" radius={[0,4,4,0]}>{ipsMunPageData.map((e,i)=><Cell key={i} fill={e.fill}/>)}</Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:8,marginTop:6}}>
+              {pgBtnPib(()=>setIpsMunPage(p=>Math.max(0,p-1)),safeIpsMp===0,"‹ Anterior")}
+              <span style={{fontSize:11,color:T.textLight}}>{safeIpsMp+1} / {ipsMunTotPg} · {ipsMunRankAll.length} municípios</span>
+              {pgBtnPib(()=>setIpsMunPage(p=>Math.min(ipsMunTotPg-1,p+1)),safeIpsMp>=ipsMunTotPg-1,"Próximo ›")}
+            </div>
+          </CC>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:14}}>
+          <CC title="Radar Comparativo — 12 Componentes do IPS" fonte="IPS Brasil 2025" periodo="2025" data={ipsRadar12}>
+            <ResponsiveContainer width="100%" height={400}>
+              <RadarChart data={ipsRadar12} cx="50%" cy="50%" outerRadius="72%">
+                <PolarGrid stroke="#ddd"/>
+                <PolarAngleAxis dataKey="comp" tick={{fontSize:9}}/>
+                <PolarRadiusAxis angle={90} domain={[0,100]} tick={{fontSize:8}}/>
+                {byT.map(t=><Radar key={t.t} name={t.t} dataKey={t.t} stroke={TSBIO_COLORS[t.t]} fill={TSBIO_COLORS[t.t]} fillOpacity={0.06} strokeWidth={1.5}/>)}
+                <Legend wrapperStyle={{fontSize:10}}/>
+                <Tooltip content={({label,payload})=>{
+                  if(!payload?.length)return null;
+                  return <div style={{background:T.greenDark,color:"#fff",padding:"6px 10px",borderRadius:6,fontSize:10,boxShadow:"0 2px 8px rgba(0,0,0,0.25)",maxWidth:200}}>
+                    <div style={{fontWeight:700,marginBottom:2,fontSize:11}}>{label}</div>
+                    {payload.filter(p=>p.value!=null).map((p,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",gap:12,marginTop:1}}>
+                      <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:6,height:6,borderRadius:6,background:p.color,flexShrink:0}}/>{p.name}</span>
+                      <b>{p.value}</b>
+                    </div>)}
+                  </div>;
+                }}/>
+              </RadarChart>
+            </ResponsiveContainer>
+          </CC>
+          <CC title="Scores por Componente e Território" fonte="IPS Brasil 2025" periodo="2025" data={ipsTblComps}>
+            <div style={{overflowX:"auto",flex:1,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                <thead>
+                  <tr style={{background:"#f5f7f5"}}>
+                    <th style={{padding:"8px 12px",textAlign:"left",fontWeight:700,whiteSpace:"nowrap"}}>Componente</th>
+                    {byT.map(t=><th key={t.t} style={{padding:"8px 8px",textAlign:"center",fontWeight:700,whiteSpace:"nowrap",color:TSBIO_COLORS[t.t],fontSize:10}}>{t.t}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ipsTblComps.map((row,i)=>(
+                    <tr key={i} style={{background:i%2===0?"#fff":"#fafafa",borderBottom:`1px solid ${T.border}`}}>
+                      <td style={{padding:"7px 12px",fontWeight:600,whiteSpace:"nowrap"}}>{row.comp}</td>
+                      {byT.map(t=>{
+                        const v=row[t.t];
+                        const bg=v==null?"#f5f5f5":v>=60?"rgba(27,122,61,0.10)":v>=40?"rgba(232,135,30,0.08)":"rgba(196,52,45,0.08)";
+                        const c=v==null?T.textLight:v>=60?T.green:v>=40?T.orange:T.red;
+                        return <td key={t.t} style={{padding:"7px 8px",textAlign:"center",fontWeight:600,background:bg,color:c}}>{v!=null?v:'—'}</td>;
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </CC>
         </div>
       </div>

@@ -57,7 +57,7 @@ def _is_extra_municipio_nome_col(col: str) -> bool:
 #   TEMAS_ALVO = ["Área média ha", "IDHM"]
 #
 # Observação: a comparação é "flexível" (case-insensitive e ignora acentos/pontuação).
-CATEGORIAS_ALVO = ["Índices"]  # ex.: ["Vulnerabilidade"]
+CATEGORIAS_ALVO = []  # ex.: ["Vulnerabilidade"]
 TEMAS_ALVO = []       # ex.: ["Área média ha"]
 
 def _norm(s: str) -> str:

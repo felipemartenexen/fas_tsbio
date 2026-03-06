@@ -1,32 +1,32 @@
 {
   "projeto": "Dashboard TSBio",
-  "gerado_em": "2026-02-18 17:28",
-  "total_indicadores": 723,
+  "gerado_em": "2026-03-06 00:47",
+  "total_indicadores": 800,
   "dimensoes": {
     "produtiva": {
       "nome": "Produtiva",
       "arquivo": "dim_produtiva.json",
-      "n_indicadores": 5
+      "n_indicadores": 50
     },
     "ambiental": {
       "nome": "Ambiental",
       "arquivo": "dim_ambiental.json",
-      "n_indicadores": 1
+      "n_indicadores": 16
     },
     "socioeconomica": {
       "nome": "Socioeconômica",
       "arquivo": "dim_socioeconomica.json",
-      "n_indicadores": 154
+      "n_indicadores": 161
     },
     "infraestrutura": {
       "nome": "Infraestrutura",
       "arquivo": "dim_infraestrutura.json",
-      "n_indicadores": 13
+      "n_indicadores": 14
     },
     "politicas": {
       "nome": "Políticas Públicas",
       "arquivo": "dim_politicas.json",
-      "n_indicadores": 8
+      "n_indicadores": 17
     },
     "vulnerabilidades": {
       "nome": "Vulnerabilidades Socioambientais",
